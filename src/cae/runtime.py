@@ -1,11 +1,10 @@
 """Runtime abstraction for spawning worker and tester processes.
 
 Provides a unified interface over local subprocesses and rootless containers.
-When container mode is implemented, ``ContainerRuntime`` will use Podman
-without changing any manager code.
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from abc import ABC, abstractmethod
@@ -40,6 +39,10 @@ class Runtime(ABC):
         """
         ...
 
+
+# ---------------------------------------------------------------------------
+# Local
+# ---------------------------------------------------------------------------
 
 class LocalRuntime(Runtime):
     """Local subprocess-based runtime."""
@@ -91,8 +94,59 @@ class LocalRuntime(Runtime):
         )
 
 
+# ---------------------------------------------------------------------------
+# Container (rootless Podman)
+# ---------------------------------------------------------------------------
+
 class ContainerRuntime(Runtime):
-    """Rootless Podman container runtime (stubbed)."""
+    """Rootless Podman container runtime.
+
+    Spawns worker and tester processes as Podman containers.
+
+    Parameters
+    ----------
+    engine:
+        Container engine command (default: ``podman``).
+    worker_image:
+        Image for the worker container (default: ``cae-worker-base``).
+    tester_image:
+        Image for the tester container (default: ``cae-tester-base``).
+    agent_mounts:
+        Extra ``(host_path, container_path)`` bind-mounts to inject agent
+        binaries or other dependencies into the worker container.
+    src_dir:
+        Directory containing the CAE framework source.  Mounted at
+        ``/cae/src`` inside containers with ``PYTHONPATH`` set.
+        Defaults to the parent of this file (``src/``).
+    """
+
+    def __init__(
+        self,
+        engine: str = "podman",
+        worker_image: str = "cae-worker-base",
+        tester_image: str = "cae-tester-base",
+        agent_mounts: list[tuple[str, str]] | None = None,
+        src_dir: Path | None = None,
+    ):
+        self.engine = engine
+        self.worker_image = worker_image
+        self.tester_image = tester_image
+        self.agent_mounts = agent_mounts or []
+        if src_dir is None:
+            # src/cae/runtime.py -> src/
+            self.src_dir = Path(__file__).parent.parent.absolute()
+        else:
+            self.src_dir = src_dir.absolute()
+
+    def _podman_run(self, image: str, *, net_none: bool = False) -> list[str]:
+        """Return the common ``podman run`` prefix."""
+        cmd = [self.engine, "run", "--rm", "--userns=keep-id"]
+        if net_none:
+            cmd.append("--net=none")
+        return cmd
+
+    def _mount(self, host: Path | str, container: str) -> str:
+        return f"-v{host}:{container}:Z"
 
     def spawn_worker(
         self,
@@ -100,22 +154,72 @@ class ContainerRuntime(Runtime):
         agent_cmd: list[str] | None = None,
         agent_mode: str = "pi",
     ) -> subprocess.Popen:
-        raise NotImplementedError(
-            "ContainerRuntime.spawn_worker is not yet implemented. "
-            "Use mode='local' for local subprocess execution."
+        run_dir = volume.root.absolute()
+
+        cmd = self._podman_run(self.worker_image)
+        cmd.append(self._mount(run_dir, "/run"))
+        cmd.append(self._mount(self.src_dir, "/cae/src"))
+
+        for host_path, container_path in self.agent_mounts:
+            cmd.append(self._mount(host_path, container_path))
+
+        cmd.extend([
+            "-e", "PYTHONPATH=/cae/src",
+            "-e", "CAE_ARTIFACT_ROOT=/run/impl",
+            "-w", "/run/impl",
+            self.worker_image,
+            "--volume", "/run",
+            "--agent-mode", agent_mode,
+        ])
+
+        if agent_cmd:
+            cmd += ["--agent-cmd", " ".join(agent_cmd)]
+
+        return subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
         )
 
     def spawn_tester(self, volume: Volume, benchmark: Benchmark, phase_id: str) -> subprocess.CompletedProcess:
-        raise NotImplementedError(
-            "ContainerRuntime.spawn_tester is not yet implemented. "
-            "Use mode='local' for local subprocess execution."
-        )
+        run_dir = volume.root.absolute()
+        benchmark_dir = benchmark.base_dir.absolute()
+        tests_rel = benchmark.tests_script.relative_to(benchmark_dir)
+        tests_dir = f"/benchmark/{tests_rel.parent}"
+
+        cmd = self._podman_run(self.tester_image, net_none=True)
+        cmd.append(self._mount(run_dir, "/run"))
+        cmd.append(self._mount(self.src_dir, "/cae/src"))
+        cmd.append(self._mount(benchmark_dir, "/benchmark"))
+
+        cmd.extend([
+            "-e", "PYTHONPATH=/cae/src",
+            "-e", f"CAE_PHASE={phase_id}",
+            "-e", "CAE_ARTIFACT_ROOT=/run/impl",
+            "-w", tests_dir,
+            self.tester_image,
+            "--volume", "/run",
+            "--task", "/benchmark/task.json",
+            "--phase", phase_id,
+            "--tests", f"/benchmark/{tests_rel}",
+        ])
+
+        return subprocess.run(cmd, capture_output=True, text=True)
 
 
-def runtime_for_mode(mode: str) -> Runtime:
-    """Return a ``Runtime`` instance for the given mode string."""
+# ---------------------------------------------------------------------------
+# Factory
+# ---------------------------------------------------------------------------
+
+def runtime_for_mode(mode: str, **kwargs) -> Runtime:
+    """Return a ``Runtime`` instance for the given mode string.
+
+    *mode="local"* returns ``LocalRuntime()``.
+    *mode="container"* returns ``ContainerRuntime(**kwargs)``.
+    """
     if mode == "local":
         return LocalRuntime()
     if mode == "container":
-        return ContainerRuntime()
+        return ContainerRuntime(**kwargs)
     raise ValueError(f"Unknown runtime mode: {mode!r}. Expected 'local' or 'container'.")

@@ -14,10 +14,8 @@ This document describes the state machine of the CAE manager component.
 │   ┌─────────┴─────────┐
 │   │  ready marker     │
 │   └───────────────────┘
-│             │
-│   ┌─────────┴──────────────┐
 │   │  Runtime abstraction   │  ←─ local: subprocess
-│   │                        │     container: Podman (stubbed)
+│   │                        │     container: Podman
 │   └────────────────────────┘
 │             │
 │   ┌─────────┴──────────────┐

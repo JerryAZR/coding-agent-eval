@@ -18,7 +18,18 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--mode", default="local", choices=["local", "container"])
     run_parser.add_argument("--agent-mode", default="pi", help="Agent harness mode (pi, echo, ...)")
     run_parser.add_argument("--max-time", type=float, default=3600)
-    run_parser.add_argument("--agent-cmd", help="Custom agent command for local mode (space-separated)")
+    run_parser.add_argument("--agent-cmd", help="Custom agent command (space-separated)")
+
+    # container-only options
+    run_parser.add_argument("--engine", default="podman", help="Container engine (podman, docker)")
+    run_parser.add_argument("--worker-image", default="cae-worker-base", help="Worker container image")
+    run_parser.add_argument("--tester-image", default="cae-tester-base", help="Tester container image")
+    run_parser.add_argument(
+        "--agent-mount",
+        action="append",
+        metavar="HOST:CONTAINER",
+        help="Bind-mount host directory into worker container (can repeat)",
+    )
 
     args = parser.parse_args(argv)
 
@@ -33,7 +44,17 @@ def main(argv: list[str] | None = None) -> int:
         parent = Path(args.volume)
         parent.mkdir(parents=True, exist_ok=True)
 
-        runtime = runtime_for_mode(args.mode)
+        runtime_kwargs: dict = {}
+        if args.mode == "container":
+            runtime_kwargs["engine"] = args.engine
+            runtime_kwargs["worker_image"] = args.worker_image
+            runtime_kwargs["tester_image"] = args.tester_image
+            if args.agent_mount:
+                runtime_kwargs["agent_mounts"] = [
+                    tuple(m.split(":", 1)) for m in args.agent_mount
+                ]
+
+        runtime = runtime_for_mode(args.mode, **runtime_kwargs)
         agent_cmd = args.agent_cmd.split() if args.agent_cmd else None
         scores = run_suite(
             benchmarks=benchmarks,

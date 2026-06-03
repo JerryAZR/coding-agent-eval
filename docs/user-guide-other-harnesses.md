@@ -140,24 +140,17 @@ PYTHONPATH=src:my-adapter-dir python -m cae run \
   --agent-mode claude \
   --agent-cmd "claude"   # optional override
 ```
-
-The `--agent-mode` flag selects which registered client to use. `--agent-cmd` is passed through to the client's constructor as a list of strings (split on whitespace).
-
-## File Locations
-
-- **Agent workspace**: `CAE_ARTIFACT_ROOT` points to `impl/`. Write all code here.
-- **Task spec**: Read `.cae/task.json` for the current phase prompt.
-- **Feedback**: After evaluation, `.cae/feedback.json` contains pass/fail.
-- **Ready signal**: When done, create `.cae/ready`. The worker does this automatically after `run_turn` returns successfully.
-
 ## Container Mode
 
-In container mode, your adapter code is part of the worker image. Options:
+For isolated evaluation, run worker and tester in rootless Podman containers:
 
-1. **Layer it**: `FROM cae-worker-base`, add your adapter + harness dependencies
-2. **Bind-mount it**: Mount your adapter directory into the container at runtime
+```bash
+PYTHONPATH=src python -m cae run \
+  --mode container \
+  --suite benchmarks/nlm-eval/suite.json
+```
 
-See `docs/container-mode.md` (forthcoming) for build instructions.
+See `docs/container-mode.md` for full details on building images, layering agents, and security configuration.
 
 ## Summary
 
