@@ -45,7 +45,8 @@ The worker handles all volume protocol interaction (`.cae/task.json`, `.cae/feed
 
 | Mode | Class | Description |
 |------|-------|-------------|
-| `pi` (default) | `RpcAgentClient` | JSONL RPC over stdin/stdout. Idle detected via `agent_end` + quiet period. |
+| `pi` (default) | `PiOneShotClient` | One-shot `pi -p` with persistent `--session-id`. Fresh process per turn, shared session across retries/phases. |
+| `pi-rpc` | `RpcAgentClient` | Long-lived JSONL RPC. Legacy mode, only needed if one-shot is unsuitable. |
 | `echo` | `EchoClient` | Test harness. Writes first prompt to `output.txt`. No subprocess. |
 
 You can also implement your own and register it with `@register_client("name")`.
@@ -91,11 +92,10 @@ Use the built-in base class for long-lived processes:
 ```python
 from cae.agent_client import RpcAgentClient, register_client
 
-@register_client("pi")
-class PiClient(RpcAgentClient):
+@register_client("my-rpc-agent")
+class MyRpcClient(RpcAgentClient):
     def __init__(self, agent_cmd=None, idle_timeout=5.0, **kwargs):
-        # agent_cmd defaults to pi if not provided
-        super().__init__(agent_cmd or ["pi", "--mode", "rpc", "--no-session"], idle_timeout)
+        super().__init__(agent_cmd or ["my-agent", "--mode", "rpc"], idle_timeout)
 ```
 
 `RpcAgentClient` handles:
@@ -103,6 +103,8 @@ class PiClient(RpcAgentClient):
 - Sending prompts via JSONL
 - Monitoring stdout for idle events
 - Terminating cleanly on cleanup
+
+`pi` uses `PiOneShotClient` by default. Only use `pi-rpc` if you specifically need the long-lived RPC behavior.
 
 ## Pattern C: Fully Custom (inline)
 

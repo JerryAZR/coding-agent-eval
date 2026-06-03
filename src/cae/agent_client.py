@@ -3,8 +3,8 @@
 The worker uses an AgentClient to communicate with the agent harness.
 Built-in clients cover the two common paradigms:
 
+- OneShotAgentClient: fresh process per turn (e.g. pi -p, claude, aider)
 - RpcAgentClient: long-lived process, multiple prompts (e.g. pi --mode rpc)
-- OneShotAgentClient: fresh process per turn (e.g. claude, aider)
 """
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -127,6 +128,76 @@ def _monitor_events(
 # Built-in clients
 # ---------------------------------------------------------------------------
 
+class OneShotAgentClient(AgentClient):
+    """Client for one-shot CLI agents (e.g. claude, aider).
+
+    Runs a fresh subprocess per turn. Subclasses override build_cmd().
+    """
+
+    def __init__(self, agent_cmd: list[str] | None = None, **kwargs):
+        self.agent_cmd = agent_cmd or []
+        self.state = None
+
+    def build_cmd(self, prompt: str) -> list[str]:
+        """Return the command to run for this turn.
+
+        agent_cmd is prepended as the base command.
+        """
+        return [*self.agent_cmd, prompt]
+
+    def extract_state(self, result: subprocess.CompletedProcess):
+        """Parse state from stdout for the next turn. Optional."""
+        return None
+
+    def run_turn(self, prompt: str, env: dict, cwd: Path) -> TurnResult:
+        cmd = self.build_cmd(prompt)
+        try:
+            result = subprocess.run(
+                cmd,
+                env=env,
+                cwd=str(cwd),
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            self.state = self.extract_state(result)
+            success = result.returncode == 0
+            details = result.stdout
+            if result.stderr:
+                details += "\n--- stderr ---\n" + result.stderr
+            return TurnResult(success=success, details=details.strip())
+        except subprocess.TimeoutExpired:
+            return TurnResult(success=False, details="Agent timed out after 300s")
+        except Exception as e:
+            return TurnResult(success=False, details=f"Failed to run agent: {e}")
+
+
+class PiOneShotClient(OneShotAgentClient):
+    """One-shot pi client using -p with persistent --session-id.
+
+    Each turn starts a fresh pi process, but all turns share the same
+    session so the agent retains context across retries and phases.
+    Sessions are saved to disk for later analysis.
+    """
+
+    def __init__(self, agent_cmd: list[str] | None = None, **kwargs):
+        # agent_cmd is ignored; pi binary is hardcoded
+        super().__init__(agent_cmd=[])
+        self.session_id = str(uuid.uuid4())
+
+    def build_cmd(self, prompt: str) -> list[str]:
+        return [
+            "pi",
+            "-p", prompt,
+            "--session-id", self.session_id,
+            "--name", f"cae-{self.session_id[:8]}",
+        ]
+
+    def extract_state(self, result: subprocess.CompletedProcess):
+        # Session persistence is handled by pi itself via --session-id
+        return None
+
+
 class RpcAgentClient(AgentClient):
     """Client for RPC-style agents (e.g. pi --mode rpc).
 
@@ -184,50 +255,6 @@ class RpcAgentClient(AgentClient):
                 self._proc.kill()
 
 
-class OneShotAgentClient(AgentClient):
-    """Client for one-shot CLI agents (e.g. claude, aider).
-
-    Runs a fresh subprocess per turn. Subclasses override build_cmd().
-    """
-
-    def __init__(self, agent_cmd: list[str] | None = None, **kwargs):
-        self.agent_cmd = agent_cmd or []
-        self.state = None
-
-    def build_cmd(self, prompt: str) -> list[str]:
-        """Return the command to run for this turn.
-
-        agent_cmd is prepended as the base command.
-        """
-        return [*self.agent_cmd, prompt]
-
-    def extract_state(self, result: subprocess.CompletedProcess):
-        """Parse state from stdout for the next turn. Optional."""
-        return None
-
-    def run_turn(self, prompt: str, env: dict, cwd: Path) -> TurnResult:
-        cmd = self.build_cmd(prompt)
-        try:
-            result = subprocess.run(
-                cmd,
-                env=env,
-                cwd=str(cwd),
-                capture_output=True,
-                text=True,
-                timeout=300,
-            )
-            self.state = self.extract_state(result)
-            success = result.returncode == 0
-            details = result.stdout
-            if result.stderr:
-                details += "\n--- stderr ---\n" + result.stderr
-            return TurnResult(success=success, details=details.strip())
-        except subprocess.TimeoutExpired:
-            return TurnResult(success=False, details="Agent timed out after 300s")
-        except Exception as e:
-            return TurnResult(success=False, details=f"Failed to run agent: {e}")
-
-
 class EchoClient(AgentClient):
     """Test harness: writes the first prompt to output.txt.
 
@@ -265,7 +292,8 @@ def register_client(name: str):
     return decorator
 
 
-register_client("pi")(RpcAgentClient)
+register_client("pi")(PiOneShotClient)
+register_client("pi-rpc")(RpcAgentClient)
 register_client("echo")(EchoClient)
 
 
