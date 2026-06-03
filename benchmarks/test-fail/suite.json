@@ -1,0 +1,6 @@
+{
+  "name": "test-fail",
+  "benchmarks": [
+    "task.json"
+  ]
+}

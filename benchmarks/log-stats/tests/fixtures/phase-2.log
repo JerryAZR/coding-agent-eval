@@ -1,0 +1,7 @@
+2024-01-01 10:00:00 INFO morning batch started
+2024-01-01 10:00:01 ERROR disk full
+2024-01-01 10:00:02 WARN low memory
+2024-01-01 10:00:03 ERROR disk full
+2024-01-01 10:00:04 INFO request 1
+2024-01-01 10:00:05 INFO request 2
+2024-01-01 10:00:06 ERROR disk full

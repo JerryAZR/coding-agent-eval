@@ -1,0 +1,31 @@
+{
+  "id": "log-stats",
+  "name": "Log File Analyzer",
+  "phases": [
+    {
+      "id": "phase-1",
+      "promptFile": "prompts/phase-1.md",
+      "maxAttempts": 3,
+      "points": 10
+    },
+    {
+      "id": "phase-2",
+      "promptFile": "prompts/phase-2.md",
+      "maxAttempts": 3,
+      "points": 20
+    },
+    {
+      "id": "phase-3",
+      "promptFile": "prompts/phase-3.md",
+      "maxAttempts": 3,
+      "points": 30
+    }
+  ],
+  "tests": {
+    "script": "tests/run.sh"
+  },
+  "scoring": {
+    "penaltyPerAttempt": 2,
+    "penaltyFloor": 0
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "coding-agent-eval",
+  "version": "0.1.0",
+  "description": "Evaluation framework and benchmark suite for coding agents",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "cae": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "node --test dist/**/*.test.js"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "dockerode": "^4.0.2"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^3.3.31",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.4.5"
+  }
+}

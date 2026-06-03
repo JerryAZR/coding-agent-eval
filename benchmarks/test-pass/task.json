@@ -1,0 +1,15 @@
+{
+  "id": "test-pass",
+  "name": "Test Pass Benchmark",
+  "description": "Minimal benchmark that always passes on first attempt",
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "Pass test",
+      "promptFile": "prompts/phase-1.md",
+      "points": 10,
+      "maxAttempts": 3
+    }
+  ],
+  "testsPath": "tests"
+}

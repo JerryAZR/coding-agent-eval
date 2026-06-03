@@ -1,0 +1,6 @@
+{
+  "name": "log-stats",
+  "benchmarks": [
+    "task.json"
+  ]
+}

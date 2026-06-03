@@ -1,0 +1,19 @@
+{
+  "id": "test-retry",
+  "name": "Test Retry Benchmark",
+  "description": "Benchmark that fails first attempt to test retry and penalty scoring",
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "Retry test",
+      "promptFile": "prompts/phase-1.md",
+      "points": 10,
+      "maxAttempts": 3
+    }
+  ],
+  "testsPath": "tests",
+  "scoring": {
+    "penaltyPerAttempt": 2,
+    "penaltyFloor": 4
+  }
+}

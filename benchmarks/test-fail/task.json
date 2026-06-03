@@ -1,0 +1,15 @@
+{
+  "id": "test-fail",
+  "name": "Test Fail Benchmark",
+  "description": "Benchmark that always fails to test exhaustion",
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "Always fail",
+      "promptFile": "prompts/phase-1.md",
+      "points": 10,
+      "maxAttempts": 3
+    }
+  ],
+  "testsPath": "tests"
+}
