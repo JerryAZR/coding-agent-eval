@@ -140,6 +140,12 @@ class TestContainerRuntimeCommandConstruction(unittest.TestCase):
         cmd = self._capture_worker_cmd(worker_image="custom-worker")
         self.assertIn("custom-worker", cmd)
 
+    def test_worker_includes_python_module(self):
+        cmd = self._capture_worker_cmd()
+        idx = cmd.index("/usr/bin/python")
+        self.assertEqual(cmd[idx + 1], "-m")
+        self.assertEqual(cmd[idx + 2], "cae.worker")
+
     def test_worker_includes_agent_mounts(self):
         cmd = self._capture_worker_cmd(agent_mounts=[("/host/bin", "/usr/local/bin")])
         self.assertIn("-v/host/bin:/usr/local/bin:Z", cmd)
@@ -189,8 +195,14 @@ class TestContainerRuntimeCommandConstruction(unittest.TestCase):
         cmd = self._capture_tester_cmd()
         idx = cmd.index("--task")
         self.assertEqual(cmd[idx + 1], "/benchmark/task.json")
-        idx = cmd.index("--tests")
-        self.assertEqual(cmd[idx + 1], "/benchmark/tests/run.sh")
+        idx = cmd.index("--phase")
+        self.assertEqual(cmd[idx + 1], "phase-1")
+
+    def test_tester_includes_python_module(self):
+        cmd = self._capture_tester_cmd()
+        idx = cmd.index("/usr/bin/python")
+        self.assertEqual(cmd[idx + 1], "-m")
+        self.assertEqual(cmd[idx + 2], "cae.tester")
 
     def test_tester_uses_custom_image(self):
         cmd = self._capture_tester_cmd(tester_image="custom-tester")

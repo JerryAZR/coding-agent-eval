@@ -168,6 +168,7 @@ class ContainerRuntime(Runtime):
             "-e", "CAE_ARTIFACT_ROOT=/run/impl",
             "-w", "/run/impl",
             self.worker_image,
+            "/usr/bin/python", "-m", "cae.worker",
             "--volume", "/run",
             "--agent-mode", agent_mode,
         ])
@@ -184,25 +185,25 @@ class ContainerRuntime(Runtime):
 
     def spawn_tester(self, volume: Volume, benchmark: Benchmark, phase_id: str) -> subprocess.CompletedProcess:
         run_dir = volume.root.absolute()
-        benchmark_dir = benchmark.base_dir.absolute()
-        tests_rel = benchmark.tests_script.relative_to(benchmark_dir)
+        benchmark_dir = benchmark.base_dir.resolve()
+        tests_script = benchmark.tests_script.resolve()
+        tests_rel = tests_script.relative_to(benchmark_dir)
         tests_dir = f"/benchmark/{tests_rel.parent}"
 
         cmd = self._podman_run(self.tester_image, net_none=True)
         cmd.append(self._mount(run_dir, "/run"))
         cmd.append(self._mount(self.src_dir, "/cae/src"))
         cmd.append(self._mount(benchmark_dir, "/benchmark"))
-
         cmd.extend([
             "-e", "PYTHONPATH=/cae/src",
             "-e", f"CAE_PHASE={phase_id}",
             "-e", "CAE_ARTIFACT_ROOT=/run/impl",
             "-w", tests_dir,
             self.tester_image,
+            "/usr/bin/python", "-m", "cae.tester",
             "--volume", "/run",
             "--task", "/benchmark/task.json",
             "--phase", phase_id,
-            "--tests", f"/benchmark/{tests_rel}",
         ])
 
         return subprocess.run(cmd, capture_output=True, text=True)

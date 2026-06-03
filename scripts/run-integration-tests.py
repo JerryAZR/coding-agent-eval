@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """E2E integration tests for the CAE framework."""
+import argparse
 import json
 import os
 import subprocess
@@ -11,14 +12,14 @@ PYTHONPATH = str(Path(__file__).parent.parent / "src")
 BASE = Path(__file__).parent.parent
 
 
-def run_suite(suite_path: str, agent_mode: str = "echo", agent_cmd: str | None = None) -> tuple[bool, dict, str]:
+def run_suite(suite_path: str, agent_mode: str = "echo", agent_cmd: str | None = None, mode: str = "local") -> tuple[bool, list, str]:
     """Run a suite, return (ok, parsed_scores, stderr)."""
     with tempfile.TemporaryDirectory() as tmpdir:
         cmd = [
             sys.executable, "-m", "cae", "run",
             "--suite", suite_path,
             "--volume", tmpdir,
-            "--mode", "local",
+            "--mode", mode,
             "--agent-mode", agent_mode,
             "--max-time", "120",
         ]
@@ -34,12 +35,12 @@ def run_suite(suite_path: str, agent_mode: str = "echo", agent_cmd: str | None =
         stdout = result.stdout.strip()
         last_bracket = stdout.rfind("[")
         if last_bracket == -1:
-            return False, {}, result.stderr
+            return False, [], result.stderr
 
         try:
             scores = json.loads(stdout[last_bracket:])
         except json.JSONDecodeError:
-            return False, {}, result.stderr
+            return False, [], result.stderr
 
         return True, scores, result.stderr
 
@@ -75,11 +76,14 @@ def check_invariants(run_dir: Path, suite_name: str) -> list[str]:
         if not test_dir.exists():
             errors.append(f"{bench_id}: test/ missing")
 
-        # Agent artifacts should be in impl/
-        if not (impl / "output.txt").exists():
-            errors.append(f"{bench_id}: output.txt missing from impl/")
+        task = cae / "task.json"
+        if not task.exists():
+            errors.append(f"{bench_id}: .cae/task.json missing")
 
-        # Tester output should be in test/
+        score = cae / "score.json"
+        if not score.exists():
+            errors.append(f"{bench_id}: .cae/score.json missing")
+
         results = test_dir / "results" / "latest.json"
         if not results.exists():
             errors.append(f"{bench_id}: test/results/latest.json missing")
@@ -88,9 +92,13 @@ def check_invariants(run_dir: Path, suite_name: str) -> list[str]:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="E2E integration tests for CAE")
+    parser.add_argument("--mode", default="local", choices=["local", "container"], help="Runtime mode")
+    args = parser.parse_args()
+
     suite_path = str(BASE / "benchmarks" / "test-suite" / "suite.json")
 
-    ok, scores, stderr = run_suite(suite_path, agent_mode="echo")
+    ok, scores, stderr = run_suite(suite_path, agent_mode="echo", mode=args.mode)
     if not ok:
         print("FAIL: Could not parse suite output")
         print(stderr)
@@ -140,7 +148,7 @@ def main() -> int:
                 sys.executable, "-m", "cae", "run",
                 "--suite", suite_path,
                 "--volume", tmpdir,
-                "--mode", "local",
+                "--mode", args.mode,
                 "--agent-mode", "echo",
                 "--max-time", "120",
             ],
