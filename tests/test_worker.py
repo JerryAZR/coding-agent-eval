@@ -1,137 +1,241 @@
-"""Unit tests for worker support process components.
+"""Tests for worker support process and agent clients."""
+from __future__ import annotations
 
-PiRpcClient and monitor_events are now in cae.agent_client.
-These tests verify that the pi-specific protocol layer still works.
-"""
-import io
-import json
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from cae.agent_client import _PiRpcClient, _monitor_events
+from cae.agent_client import (
+    COMPLETION_INSTRUCTION,
+    EchoClient,
+    PHASE_COMPLETE_MARKER,
+    TurnResult,
+    AgentClient,
+)
+from cae.protocol import Feedback, TaskState, Volume
+from cae.worker import run_worker, _check_completion, MAX_CRASH_RETRIES
 
 
-class FakeProcess:
-    """Fake subprocess.Popen for testing."""
-
-    def __init__(self, stdout_lines: list[str]):
-        self.stdout = io.StringIO("\n".join(stdout_lines) + "\n")
-        self.stdin = io.StringIO()
+def _apply_fast_sleep(mock_time):
+    mock_time.sleep = lambda _x: None
 
 
-class TestPiRpcClient(unittest.TestCase):
-    def test_prompt_sends_valid_jsonl(self):
-        proc = FakeProcess([])
-        client = _PiRpcClient(proc)
-        client.prompt("hello")
-        proc.stdin.seek(0)
-        msg = json.loads(proc.stdin.readline())
-        self.assertEqual(msg["type"], "prompt")
-        self.assertEqual(msg["message"], "hello")
-        self.assertIn("id", msg)
+class TestCheckCompletion(unittest.TestCase):
+    def test_marker_on_final_line(self):
+        self.assertTrue(_check_completion("some work\n<CAE_PHASE_COMPLETE/>"))
 
-    def test_sequential_ids(self):
-        proc = FakeProcess([])
-        client = _PiRpcClient(proc)
-        client.prompt("a")
-        client.prompt("b")
-        proc.stdin.seek(0)
-        msg1 = json.loads(proc.stdin.readline())
-        msg2 = json.loads(proc.stdin.readline())
-        id1 = msg1["id"]
-        id2 = msg2["id"]
-        self.assertNotEqual(id1, id2)
+    def test_marker_not_on_final_line(self):
+        self.assertFalse(_check_completion("<CAE_PHASE_COMPLETE/>\nmore text"))
 
-    def test_steer_sends_correct_type(self):
-        proc = FakeProcess([])
-        client = _PiRpcClient(proc)
-        client.steer("fix this")
-        proc.stdin.seek(0)
-        msg = json.loads(proc.stdin.readline())
-        self.assertEqual(msg["type"], "steer")
+    def test_no_marker(self):
+        self.assertFalse(_check_completion("some work"))
 
-    def test_abort_sends_correct_type(self):
-        proc = FakeProcess([])
-        client = _PiRpcClient(proc)
-        client.abort()
-        proc.stdin.seek(0)
-        msg = json.loads(proc.stdin.readline())
-        self.assertEqual(msg["type"], "abort")
+    def test_whitespace_around_marker(self):
+        self.assertTrue(_check_completion("work\n  <CAE_PHASE_COMPLETE/>  \n"))
 
 
-class TestMonitorEvents(unittest.TestCase):
-    def test_idle_after_agent_end(self):
-        events = [
-            json.dumps({"type": "agent_end"}),
-        ]
-        proc = FakeProcess(events)
-        idle_event = threading.Event()
-        _monitor_events(proc, idle_event, idle_timeout=0.1)
-        fired = idle_event.wait(timeout=1)
-        self.assertTrue(fired, "idle_event should fire after agent_end")
+class TestEchoClient(unittest.TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.cwd = Path(self.tmpdir.name)
 
-    def test_no_idle_during_tool_execution(self):
-        events = [
-            json.dumps({"type": "agent_end"}),
-            json.dumps({"type": "tool_execution_start"}),
-            "sleep",  # simulate tool running
-            json.dumps({"type": "tool_execution_end"}),
-        ]
-        proc = FakeProcess(events)
-        idle_event = threading.Event()
-        _monitor_events(proc, idle_event, idle_timeout=0.5)
-        # Should fire after tool_execution_end + timeout
-        fired = idle_event.wait(timeout=3)
-        self.assertTrue(fired, "idle_event should fire after tool_execution_end")
+    def tearDown(self):
+        self.tmpdir.cleanup()
 
-    def test_idle_after_tool_execution_end(self):
-        events = [
-            json.dumps({"type": "tool_execution_start"}),
-            json.dumps({"type": "tool_execution_end"}),
-            json.dumps({"type": "agent_end"}),
-        ]
-        proc = FakeProcess(events)
-        idle_event = threading.Event()
-        _monitor_events(proc, idle_event, idle_timeout=0.1)
-        fired = idle_event.wait(timeout=1)
-        self.assertTrue(fired, "idle_event should fire after tool_execution_end + agent_end")
+    def test_writes_session_file(self):
+        client = EchoClient()
+        client.run_turn("hello", {}, self.cwd)
+        session_file = self.cwd / ".cae-echo-session"
+        self.assertTrue(session_file.exists())
+        self.assertEqual(len(session_file.read_text()), 36)  # UUID length
 
-    def test_working_resets_idle(self):
-        """If a new turn starts, idle should be cleared."""
-        events = [
-            json.dumps({"type": "agent_end"}),
-            json.dumps({"type": "turn_start"}),
-        ]
-        proc = FakeProcess(events)
-        idle_event = threading.Event()
-        _monitor_events(proc, idle_event, idle_timeout=0.5)
-        time.sleep(0.1)
-        self.assertFalse(idle_event.is_set(), "idle should be cleared by turn_start")
-        # Also verify it doesn't fire after timeout since turn_start resets
-        time.sleep(1)
-        self.assertFalse(idle_event.is_set(), "idle_event should NOT fire after turn_start")
+    def test_writes_output_txt(self):
+        client = EchoClient()
+        client.run_turn("hello", {}, self.cwd)
+        output_file = self.cwd / "output.txt"
+        self.assertTrue(output_file.exists())
+        self.assertEqual(output_file.read_text(), "hello")
 
-    def test_ignores_non_json_lines(self):
-        events = [
-            "some debug output",
-            json.dumps({"type": "agent_end"}),
-        ]
-        proc = FakeProcess(events)
-        idle_event = threading.Event()
-        _monitor_events(proc, idle_event, idle_timeout=0.1)
-        fired = idle_event.wait(timeout=1)
-        self.assertTrue(fired, "should still detect idle after valid agent_end")
+    def test_output_excludes_system_prompt_append(self):
+        client = EchoClient()
+        client.run_turn("hello", {}, self.cwd, system_prompt_append="EXTRA")
+        output_file = self.cwd / "output.txt"
+        self.assertEqual(output_file.read_text(), "hello")
 
-    def test_empty_stdout(self):
-        proc = FakeProcess([])
-        idle_event = threading.Event()
-        _monitor_events(proc, idle_event, idle_timeout=0.1)
-        self.assertFalse(idle_event.is_set(), "no events means no idle detection")
+    @patch("cae.agent_client.random.random", return_value=0.5)
+    def test_returns_no_marker_when_random_high(self, _mock):
+        client = EchoClient()
+        result = client.run_turn("hello", {}, self.cwd)
+        self.assertNotIn(PHASE_COMPLETE_MARKER, result.output)
+
+    @patch("cae.agent_client.random.random", return_value=0.1)
+    def test_returns_marker_when_random_low(self, _mock):
+        client = EchoClient()
+        result = client.run_turn("hello", {}, self.cwd)
+        self.assertIn(PHASE_COMPLETE_MARKER, result.output)
+
+    @patch("cae.agent_client.random.random", side_effect=[0.5, 0.1])
+    def test_first_prompt_only_writes_once(self, _mock):
+        client = EchoClient()
+        client.run_turn("hello", {}, self.cwd)
+        client.run_turn("continue", {}, self.cwd)
+        output_file = self.cwd / "output.txt"
+        self.assertEqual(output_file.read_text(), "hello")
+
+
+class FakeClient(AgentClient):
+    """Deterministic agent client for testing worker loop behaviour."""
+
+    def __init__(self, responses):
+        self._responses = iter(responses)
+        self.prompts: list[str] = []
+
+    def run_turn(self, prompt, env, cwd, system_prompt_append=""):
+        self.prompts.append(prompt)
+        try:
+            resp = next(self._responses)
+            if isinstance(resp, TurnResult):
+                return resp
+            return TurnResult(success=True, output=resp)
+        except StopIteration:
+            return TurnResult(success=False, details="exhausted", output="")
+
+
+class TestWorkerLoop(unittest.TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.run_dir = Path(self.tmpdir.name)
+        self.impl_dir = self.run_dir / "impl"
+        self.impl_dir.mkdir()
+        self.volume = Volume(self.run_dir)
+        self.volume.ensure_dirs()
+        self.volume.write_task(
+            TaskState(
+                benchmark_id="test",
+                phase_id="phase-1",
+                attempt=1,
+                prompt="Do something",
+                max_attempts=3,
+                points=10,
+            )
+        )
+
+    def tearDown(self):
+        self.tmpdir.cleanup()
+
+    def _write_feedback_after_ready(self, feedback, delay=0.5):
+        """Return a thread that waits for ready, sleeps *delay*, then writes feedback."""
+
+        def _writer():
+            for _ in range(int(delay * 2 / 0.01) + 100):  # generous timeout
+                if self.volume.is_ready():
+                    time.sleep(delay)
+                    self.volume.write_feedback(feedback)
+                    return
+                time.sleep(0.01)
+
+        t = threading.Thread(target=_writer)
+        t.start()
+        return t
+
+    @patch("cae.worker.time")
+    def test_sets_ready_when_marker_present(self, mock_time):
+        _apply_fast_sleep(mock_time)
+        client = FakeClient(["work done\n<CAE_PHASE_COMPLETE/>"])
+        fb = Feedback(
+            phase_id="phase-1",
+            attempt=1,
+            passed=True,
+            message="Good",
+            phase_complete=True,
+            next_phase_id=None,
+        )
+        t = self._write_feedback_after_ready(fb)
+        result = run_worker(self.volume, self.impl_dir, lambda: client)
+        t.join(timeout=5)
+        self.assertEqual(result, 0)
+
+    @patch("cae.worker.time")
+    def test_continues_without_marker(self, mock_time):
+        _apply_fast_sleep(mock_time)
+        client = FakeClient([
+            "should I continue?",
+            "done\n<CAE_PHASE_COMPLETE/>",
+        ])
+        fb = Feedback(
+            phase_id="phase-1",
+            attempt=1,
+            passed=True,
+            message="Good",
+            phase_complete=True,
+            next_phase_id=None,
+        )
+        t = self._write_feedback_after_ready(fb)
+        result = run_worker(self.volume, self.impl_dir, lambda: client)
+        t.join(timeout=5)
+        self.assertEqual(result, 0)
+        self.assertEqual(len(client.prompts), 2)
+        self.assertIn("Continue working", client.prompts[1])
+
+    @patch("cae.worker.time")
+    def test_retries_on_crash(self, mock_time):
+        _apply_fast_sleep(mock_time)
+        client = FakeClient([
+            TurnResult(success=False, details="crash", output=""),
+            "done\n<CAE_PHASE_COMPLETE/>",
+        ])
+        fb = Feedback(
+            phase_id="phase-1",
+            attempt=1,
+            passed=True,
+            message="Good",
+            phase_complete=True,
+            next_phase_id=None,
+        )
+        t = self._write_feedback_after_ready(fb)
+        result = run_worker(self.volume, self.impl_dir, lambda: client)
+        t.join(timeout=5)
+        self.assertEqual(result, 0)
+        self.assertEqual(len(client.prompts), 2)
+        self.assertIn("Continue working", client.prompts[1])
+
+    def test_exits_after_max_crash_retries(self):
+        responses = [
+            TurnResult(success=False, details="crash", output="")
+        ] * (MAX_CRASH_RETRIES + 1)
+        client = FakeClient(responses)
+        result = run_worker(self.volume, self.impl_dir, lambda: client)
+        self.assertEqual(result, 1)
+        self.assertEqual(len(client.prompts), MAX_CRASH_RETRIES)
+
+    @patch("cae.worker.time")
+    def test_resets_crash_counter_after_success(self, mock_time):
+        _apply_fast_sleep(mock_time)
+        client = FakeClient([
+            TurnResult(success=False, details="crash", output=""),
+            "not done yet",
+            TurnResult(success=False, details="crash", output=""),
+            "done\n<CAE_PHASE_COMPLETE/>",
+        ])
+        fb = Feedback(
+            phase_id="phase-1",
+            attempt=1,
+            passed=True,
+            message="Good",
+            phase_complete=True,
+            next_phase_id=None,
+        )
+        t = self._write_feedback_after_ready(fb)
+        result = run_worker(self.volume, self.impl_dir, lambda: client)
+        t.join(timeout=5)
+        self.assertEqual(result, 0)
+        self.assertEqual(len(client.prompts), 4)
 
 
 if __name__ == "__main__":

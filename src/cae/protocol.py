@@ -149,10 +149,15 @@ class Volume:
         self.cae.mkdir(parents=True, exist_ok=True)
         self.results.mkdir(parents=True, exist_ok=True)
 
+    def _atomic_write(self, path: Path, data: dict) -> None:
+        """Write JSON atomically via a temp file + rename."""
+        tmp = path.with_suffix(".tmp")
+        with open(tmp, "w") as f:
+            json.dump(data, f, indent=2)
+        tmp.rename(path)
+
     def write_task(self, task: TaskState) -> None:
-        path = self.cae / TASK_FILE
-        with open(path, "w") as f:
-            json.dump(task.to_dict(), f, indent=2)
+        self._atomic_write(self.cae / TASK_FILE, task.to_dict())
 
     def read_task(self) -> TaskState | None:
         path = self.cae / TASK_FILE
@@ -162,9 +167,7 @@ class Volume:
             return TaskState.from_dict(json.load(f))
 
     def write_feedback(self, feedback: Feedback) -> None:
-        path = self.cae / FEEDBACK_FILE
-        with open(path, "w") as f:
-            json.dump(feedback.to_dict(), f, indent=2)
+        self._atomic_write(self.cae / FEEDBACK_FILE, feedback.to_dict())
 
     def read_feedback(self) -> Feedback | None:
         path = self.cae / FEEDBACK_FILE
@@ -174,9 +177,7 @@ class Volume:
             return Feedback.from_dict(json.load(f))
 
     def write_score(self, score: Score) -> None:
-        path = self.cae / SCORE_FILE
-        with open(path, "w") as f:
-            json.dump(score.to_dict(), f, indent=2)
+        self._atomic_write(self.cae / SCORE_FILE, score.to_dict())
 
     def read_score(self) -> Score | None:
         path = self.cae / SCORE_FILE
@@ -186,9 +187,7 @@ class Volume:
             return Score.from_dict(json.load(f))
 
     def write_result(self, result: TestResult) -> None:
-        path = self.results / LATEST_RESULT
-        with open(path, "w") as f:
-            json.dump(result.to_dict(), f, indent=2)
+        self._atomic_write(self.results / LATEST_RESULT, result.to_dict())
 
     def read_result(self) -> TestResult | None:
         path = self.results / LATEST_RESULT
