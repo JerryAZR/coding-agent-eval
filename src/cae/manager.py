@@ -23,6 +23,7 @@ from .benchmark import Benchmark, Phase
 from .protocol import Volume, TaskState, Feedback, Score, TestResult
 from .runtime import Runtime
 from .scoring import ScoringRules, compute_phase_score
+from .template import apply_template
 
 
 def setup_volume(volume: Volume, benchmark: Benchmark, phase: Phase, attempt: int = 1) -> None:
@@ -305,6 +306,7 @@ def run_group(
     max_total_time: float = 3600,
     agent_cmd: list[str] | None = None,
     agent_mode: str = "pi",
+    template_dir: Path | str | None = None,
 ) -> Score:
     """Run a single benchmark (one task group) to completion or first failure.
 
@@ -328,6 +330,9 @@ def run_group(
     test_dir = bench_dir / "test"
     impl_dir.mkdir(exist_ok=True)
     test_dir.mkdir(exist_ok=True)
+
+    if template_dir is not None:
+        apply_template(impl_dir, Path(template_dir))
 
     volume = Volume(bench_dir, results_dir=test_dir / "results")
     volume.ensure_dirs()
@@ -387,6 +392,7 @@ def run_group(
             except subprocess.TimeoutExpired:
                 worker_proc.kill()
 
+
 def run_suite(
     benchmarks: list[Benchmark],
     base_volume_path: Path,
@@ -395,6 +401,7 @@ def run_suite(
     max_total_time: float = 3600,
     agent_cmd: list[str] | None = None,
     agent_mode: str = "pi",
+    template_dir: Path | str | None = None,
 ) -> list[Score]:
     """Run multiple benchmarks (groups) sequentially.
 
@@ -422,10 +429,10 @@ def run_suite(
             max_total_time=max_total_time,
             agent_cmd=agent_cmd,
             agent_mode=agent_mode,
+            template_dir=template_dir,
         )
         scores.append(score)
         print(f"\n=== {benchmark.id}: {score.total_points} points ===")
 
     _write_suite_summary(run_dir, suite_name, scores)
     return scores
-

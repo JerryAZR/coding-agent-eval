@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+import os
 import tempfile
 from pathlib import Path
 import unittest
@@ -119,13 +120,15 @@ class TestContainerRuntimeCommandConstruction(unittest.TestCase):
 
     def test_worker_sets_pythonpath(self):
         cmd = self._capture_worker_cmd()
-        idx = cmd.index("-e")
-        self.assertEqual(cmd[idx + 1], "PYTHONPATH=/cae/src")
+        self.assertIn("PYTHONPATH=/cae/src", cmd)
 
     def test_worker_sets_cae_artifact_root(self):
         cmd = self._capture_worker_cmd()
-        idx = cmd.index("-e")
-        self.assertEqual(cmd[idx + 3], "CAE_ARTIFACT_ROOT=/run/impl")
+        self.assertIn("CAE_ARTIFACT_ROOT=/run/impl", cmd)
+
+    def test_worker_sets_home(self):
+        cmd = self._capture_worker_cmd()
+        self.assertIn("HOME=/run/impl", cmd)
 
     def test_worker_passes_agent_mode(self):
         cmd = self._capture_worker_cmd()
@@ -174,6 +177,34 @@ class TestContainerRuntimeCommandConstruction(unittest.TestCase):
         idx = cmd.index("--agent-cmd")
         self.assertEqual(cmd[idx + 1], "claude -p")
 
+    def test_worker_passes_env_file(self):
+        env_file = self.run_dir / "impl" / ".cae-env"
+        env_file.write_text("FOO=bar\n")
+        cmd = self._capture_worker_cmd()
+        idx = cmd.index("--env-file")
+        self.assertEqual(cmd[idx + 1], str(env_file))
+
+    def test_worker_uses_venv_python(self):
+        venv_python = self.run_dir / "impl" / ".venv" / "bin" / "python"
+        venv_python.parent.mkdir(parents=True, exist_ok=True)
+        venv_python.touch()
+        cmd = self._capture_worker_cmd()
+        self.assertIn(str(venv_python), cmd)
+
+    def test_worker_prepends_agent_to_pythonpath(self):
+        agent_init = self.run_dir / "impl" / "agent" / "__init__.py"
+        agent_init.parent.mkdir(parents=True, exist_ok=True)
+        agent_init.touch()
+        cmd = self._capture_worker_cmd()
+        self.assertIn("PYTHONPATH=/run/impl/agent:/cae/src", cmd)
+
+    def test_worker_prepends_venv_to_path(self):
+        venv_python = self.run_dir / "impl" / ".venv" / "bin" / "python"
+        venv_python.parent.mkdir(parents=True, exist_ok=True)
+        venv_python.touch()
+        cmd = self._capture_worker_cmd()
+        self.assertIn("PATH=/run/impl/.venv/bin:/usr/local/bin:/usr/bin:/bin", cmd)
+
     def test_tester_uses_podman(self):
         cmd = self._capture_tester_cmd()
         self.assertEqual(cmd[0], "podman")
@@ -208,6 +239,74 @@ class TestContainerRuntimeCommandConstruction(unittest.TestCase):
         cmd = self._capture_tester_cmd(tester_image="custom-tester")
         self.assertIn("custom-tester", cmd)
 
+
+class TestLocalRuntimeTemplate(unittest.TestCase):
+    """Verify LocalRuntime builds correct commands and env from the template."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.run_dir = Path(self.tmp.name) / "run"
+        self.run_dir.mkdir()
+        (self.run_dir / "impl").mkdir()
+        (self.run_dir / ".cae").mkdir()
+        self.volume = Volume(self.run_dir)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _capture_worker(self):
+        captured = {}
+        original_popen = __import__("subprocess", fromlist=["Popen"]).Popen
+
+        def fake_popen(cmd, **popen_kwargs):
+            captured["cmd"] = cmd
+            captured["env"] = popen_kwargs.get("env")
+            class MockProc:
+                def poll(self): return None
+                def terminate(self): pass
+                def kill(self): pass
+                def wait(self, timeout=None): return 0
+            return MockProc()
+
+        import subprocess
+        subprocess.Popen = fake_popen
+        try:
+            rt = LocalRuntime()
+            rt.spawn_worker(self.volume, agent_mode="echo")
+        finally:
+            subprocess.Popen = original_popen
+        return captured["cmd"], captured["env"]
+
+    def test_local_sets_home(self):
+        cmd, env = self._capture_worker()
+        self.assertEqual(env["HOME"], str(self.run_dir / "impl"))
+
+    def test_local_loads_env(self):
+        env_file = self.run_dir / "impl" / ".cae-env"
+        env_file.write_text("TEST_KEY=value\n")
+        cmd, env = self._capture_worker()
+        self.assertEqual(env["TEST_KEY"], "value")
+
+    def test_local_uses_venv_python(self):
+        venv_python = self.run_dir / "impl" / ".venv" / "bin" / "python"
+        venv_python.parent.mkdir(parents=True, exist_ok=True)
+        venv_python.touch()
+        cmd, env = self._capture_worker()
+        self.assertEqual(cmd[0], str(venv_python))
+
+    def test_local_agent_in_pythonpath(self):
+        agent_path = self.run_dir / "impl" / "agent"
+        agent_path.mkdir(parents=True, exist_ok=True)
+        cmd, env = self._capture_worker()
+        self.assertIn("impl/agent", env["PYTHONPATH"])
+
+    def test_local_prepends_venv_to_path(self):
+        venv_python = self.run_dir / "impl" / ".venv" / "bin" / "python"
+        venv_python.parent.mkdir(parents=True, exist_ok=True)
+        venv_python.touch()
+        cmd, env = self._capture_worker()
+        path_entries = env["PATH"].split(os.pathsep)
+        self.assertEqual(path_entries[0], str(self.run_dir / "impl" / ".venv" / "bin"))
 
 if __name__ == "__main__":
     unittest.main()

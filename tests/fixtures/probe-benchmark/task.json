@@ -1,0 +1,15 @@
+{
+  "id": "probe-benchmark",
+  "name": "Probe Benchmark",
+  "description": "Validates template wiring",
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "Probe Phase",
+      "promptFile": "prompts/phase-1.md",
+      "points": 10,
+      "maxAttempts": 1
+    }
+  ],
+  "testsPath": "tests"
+}

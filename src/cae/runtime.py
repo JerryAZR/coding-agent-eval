@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .benchmark import Benchmark
 from .protocol import Volume
+from .template import _merge_env
 
 
 class Runtime(ABC):
@@ -40,23 +41,68 @@ class Runtime(ABC):
         ...
 
 
+def _impl_dir(volume: Volume) -> Path:
+    return volume.root / "impl"
+
+
+def _worker_env(volume: Volume) -> dict[str, str]:
+    """Build the worker subprocess environment from the template in *impl_dir*.
+
+    Sets ``$HOME`` to the impl directory, loads ``.cae-env``, prepends
+    ``.venv/bin`` to ``PATH`` if a venv exists, and prepends ``agent/`` to
+    ``PYTHONPATH`` if an adapter package exists.
+    """
+    impl = _impl_dir(volume)
+    env = dict(os.environ)
+    env["HOME"] = str(impl)
+    env["CAE_ARTIFACT_ROOT"] = str(impl)
+
+    # Resolve relative PYTHONPATH entries so they remain valid after chdir.
+    if "PYTHONPATH" in env:
+        cwd = Path.cwd()
+        env["PYTHONPATH"] = ":".join(
+            str(cwd / p) if not Path(p).is_absolute() else p
+            for p in env["PYTHONPATH"].split(":")
+        )
+
+    # Load .cae-env
+    env_file = impl / ".cae-env"
+    if env_file.exists():
+        with open(env_file) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                env[key.strip()] = value.strip()
+
+    # Detect venv
+    venv_bin = impl / ".venv" / "bin"
+    prepend_path = str(venv_bin) if venv_bin.exists() else None
+
+    # Detect agent adapter
+    agent_path = impl / "agent"
+    prepend_pythonpath = str(agent_path) if agent_path.exists() and agent_path.is_dir() else None
+
+    return _merge_env(env, {}, prepend_pythonpath=prepend_pythonpath, prepend_path=prepend_path)
+
+
+def _worker_python(volume: Volume) -> str:
+    """Return the Python interpreter to use for the worker.
+
+    Prefers ``impl/.venv/bin/python`` when a venv is present, otherwise
+    falls back to ``sys.executable``.
+    """
+    venv_python = _impl_dir(volume) / ".venv" / "bin" / "python"
+    return str(venv_python) if venv_python.exists() else sys.executable
+
+
 # ---------------------------------------------------------------------------
 # Local
 # ---------------------------------------------------------------------------
 
 class LocalRuntime(Runtime):
     """Local subprocess-based runtime."""
-
-    def _env(self) -> dict[str, str]:
-        env = dict(subprocess.os.environ)
-        # Resolve relative PYTHONPATH entries so they remain valid after chdir.
-        if "PYTHONPATH" in env:
-            cwd = Path.cwd()
-            env["PYTHONPATH"] = ":".join(
-                str(cwd / p) if not Path(p).is_absolute() else p
-                for p in env["PYTHONPATH"].split(":")
-            )
-        return env
 
     def spawn_worker(
         self,
@@ -65,7 +111,7 @@ class LocalRuntime(Runtime):
         agent_mode: str = "pi",
     ) -> subprocess.Popen:
         cmd = [
-            sys.executable, "-m", "cae.worker",
+            _worker_python(volume), "-m", "cae.worker",
             "--volume", str(volume.root.absolute()),
             "--agent-mode", agent_mode,
         ]
@@ -76,10 +122,18 @@ class LocalRuntime(Runtime):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            env=self._env(),
+            env=_worker_env(volume),
         )
 
     def spawn_tester(self, volume: Volume, benchmark: Benchmark, phase_id: str) -> subprocess.CompletedProcess:
+        env = dict(os.environ)
+        # Resolve relative PYTHONPATH entries so they remain valid after chdir.
+        if "PYTHONPATH" in env:
+            cwd = Path.cwd()
+            env["PYTHONPATH"] = ":".join(
+                str(cwd / p) if not Path(p).is_absolute() else p
+                for p in env["PYTHONPATH"].split(":")
+            )
         return subprocess.run(
             [
                 sys.executable, "-m", "cae.tester",
@@ -90,7 +144,7 @@ class LocalRuntime(Runtime):
             capture_output=True,
             text=True,
             cwd=str(benchmark.tests_script.parent.absolute()),
-            env=self._env(),
+            env=env,
         )
 
 
@@ -155,6 +209,16 @@ class ContainerRuntime(Runtime):
         agent_mode: str = "pi",
     ) -> subprocess.Popen:
         run_dir = volume.root.absolute()
+        impl_dir = run_dir / "impl"
+
+        # Detect venv on host filesystem (template already copied)
+        venv_python = impl_dir / ".venv" / "bin" / "python"
+        python_cmd = str(venv_python) if venv_python.exists() else "/usr/bin/python"
+
+        pythonpath = "/cae/src"
+        agent_path = impl_dir / "agent"
+        if agent_path.exists() and agent_path.is_dir():
+            pythonpath = f"/run/impl/agent:{pythonpath}"
 
         cmd = self._podman_run(self.worker_image)
         cmd.append(self._mount(run_dir, "/run"))
@@ -163,12 +227,23 @@ class ContainerRuntime(Runtime):
         for host_path, container_path in self.agent_mounts:
             cmd.append(self._mount(host_path, container_path))
 
+        cmd.extend(["-e", f"HOME=/run/impl"])
+        cmd.extend(["-e", f"PYTHONPATH={pythonpath}"])
+        cmd.extend(["-e", "CAE_ARTIFACT_ROOT=/run/impl"])
+
+        # Pass .cae-env if present
+        env_file = impl_dir / ".cae-env"
+        if env_file.exists():
+            cmd.extend(["--env-file", str(env_file)])
+
+        # Prepend venv/bin to PATH if venv exists
+        if venv_python.exists():
+            cmd.extend(["-e", "PATH=/run/impl/.venv/bin:/usr/local/bin:/usr/bin:/bin"])
+
         cmd.extend([
-            "-e", "PYTHONPATH=/cae/src",
-            "-e", "CAE_ARTIFACT_ROOT=/run/impl",
             "-w", "/run/impl",
             self.worker_image,
-            "/usr/bin/python", "-m", "cae.worker",
+            python_cmd, "-m", "cae.worker",
             "--volume", "/run",
             "--agent-mode", agent_mode,
         ])

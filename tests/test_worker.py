@@ -19,7 +19,7 @@ from cae.agent_client import (
     AgentClient,
 )
 from cae.protocol import Feedback, TaskState, Volume
-from cae.worker import run_worker, _check_completion, MAX_CRASH_RETRIES
+from cae.worker import run_worker, _check_completion, MAX_CRASH_RETRIES, _run_startup_script
 
 
 def _apply_fast_sleep(mock_time):
@@ -236,6 +236,39 @@ class TestWorkerLoop(unittest.TestCase):
         t.join(timeout=5)
         self.assertEqual(result, 0)
         self.assertEqual(len(client.prompts), 4)
+
+    def test_exits_on_startup_failure(self):
+        script = self.impl_dir / ".cae-startup.sh"
+        script.write_text("#!/bin/bash\nexit 1\n")
+        client = FakeClient(["done\n<CAE_PHASE_COMPLETE/>"])
+        result = run_worker(self.volume, self.impl_dir, lambda: client)
+        self.assertEqual(result, 1)
+        self.assertEqual(len(client.prompts), 0)
+
+class TestWorkerStartup(unittest.TestCase):
+    def test_runs_startup_script(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            impl_dir = Path(tmpdir)
+            marker = impl_dir / "marker.txt"
+            script = impl_dir / ".cae-startup.sh"
+            script.write_text(f"#!/bin/bash\ntouch {marker}\n")
+            rc = _run_startup_script(impl_dir)
+            self.assertEqual(rc, 0)
+            self.assertTrue(marker.exists())
+
+    def test_no_script_returns_zero(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            impl_dir = Path(tmpdir)
+            rc = _run_startup_script(impl_dir)
+            self.assertEqual(rc, 0)
+
+    def test_failed_startup_returns_nonzero(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            impl_dir = Path(tmpdir)
+            script = impl_dir / ".cae-startup.sh"
+            script.write_text("#!/bin/bash\nexit 42\n")
+            rc = _run_startup_script(impl_dir)
+            self.assertEqual(rc, 42)
 
 
 if __name__ == "__main__":

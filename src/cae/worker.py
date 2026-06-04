@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 import sys
 import time
 from collections.abc import Callable
@@ -34,6 +35,25 @@ def _check_completion(output: str) -> bool:
     return lines and lines[-1] == PHASE_COMPLETE_MARKER
 
 
+def _run_startup_script(impl_dir: Path) -> int:
+    """Execute ``.cae-startup.sh`` if present.
+
+    Runs with *impl_dir* as the working directory and the current process
+    environment.  Returns the script's exit code (0 if no script exists).
+    """
+    script = impl_dir / ".cae-startup.sh"
+    if not script.exists():
+        return 0
+
+    print(f"Running startup script: {script}", file=sys.stderr)
+    result = subprocess.run(
+        ["bash", str(script)],
+        cwd=impl_dir,
+        env=os.environ,
+    )
+    return result.returncode
+
+
 def run_worker(
     volume: Volume,
     impl_dir: Path,
@@ -51,6 +71,15 @@ def run_worker(
       worker retries up to ``MAX_CRASH_RETRIES`` with the same client.
     - After ``MAX_CRASH_RETRIES`` crashes the worker exits with an error.
     """
+    # Run agent-specific startup script inside the container/process.
+    startup_rc = _run_startup_script(impl_dir)
+    if startup_rc != 0:
+        print(
+            f"Startup script failed with exit code {startup_rc}",
+            file=sys.stderr,
+        )
+        return 1
+
     task = volume.read_task()
     if task is None:
         print("No task found in volume", file=sys.stderr)
@@ -162,6 +191,22 @@ def main(argv: list[str] | None = None) -> int:
     impl_dir = run_dir / "impl"
     volume = Volume(run_dir)
     agent_cmd = args.agent_cmd.split() if args.agent_cmd else None
+
+    # Auto-import agent adapters from impl/agent/ so @register_client
+    # decorators are executed before get_client looks up the mode.
+    agent_dir = impl_dir / "agent"
+    if agent_dir.exists() and agent_dir.is_dir():
+        import importlib
+        for py_file in agent_dir.glob("*.py"):
+            if py_file.name.startswith("_"):
+                continue
+            try:
+                importlib.import_module(py_file.stem)
+            except Exception as exc:  # noqa: BLE001
+                print(
+                    f"Warning: failed to import adapter {py_file.name}: {exc}",
+                    file=sys.stderr,
+                )
 
     def client_factory() -> AgentClient:
         return get_client(
