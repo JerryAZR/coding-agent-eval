@@ -82,3 +82,21 @@ PYTHONPATH=src python -m cae run \
   --volume ./runs \
   --agent-cmd "python3 /path/to/agent.py"
 ```
+## Dummy Benchmarks
+
+Quick smoke tests for verifying the end-to-end loop:
+
+| Benchmark | Purpose |
+|-----------|---------|
+| `dummy-smoke` | Always-passes sanity check |
+| `dummy-retry` | Vague prompt → feedback → retry loop |
+| `dummy-multi` | Two phases, second builds on first |
+| `dummy-suite` | Combines all dummy benchmarks |
+
+```bash
+PYTHONPATH=src python -m cae run \
+  --suite benchmarks/dummy-suite/suite.json \
+  --volume /tmp/dummy-runs \
+  --agent-mode pi \
+  --agent-template templates/pi
+```

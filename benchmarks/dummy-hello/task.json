@@ -1,0 +1,15 @@
+{
+  "id": "dummy-hello",
+  "name": "Dummy Hello",
+  "description": "Write hello world to output.txt",
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "Hello world",
+      "promptFile": "prompts/phase-1.md",
+      "points": 10,
+      "maxAttempts": 3
+    }
+  ],
+  "testsPath": "tests"
+}

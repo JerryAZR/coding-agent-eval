@@ -1,0 +1,22 @@
+{
+  "id": "dummy-multi",
+  "name": "Dummy Multi",
+  "description": "Two-phase benchmark where phase 2 builds on phase 1",
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "Write seed",
+      "promptFile": "prompts/phase-1.md",
+      "points": 5,
+      "maxAttempts": 2
+    },
+    {
+      "id": "phase-2",
+      "name": "Double it",
+      "promptFile": "prompts/phase-2.md",
+      "points": 5,
+      "maxAttempts": 2
+    }
+  ],
+  "testsPath": "tests"
+}

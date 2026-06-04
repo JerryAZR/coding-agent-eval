@@ -1,0 +1,6 @@
+{
+  "name": "dummy-retry",
+  "benchmarks": [
+    "task.json"
+  ]
+}

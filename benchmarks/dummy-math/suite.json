@@ -1,0 +1,6 @@
+{
+  "name": "dummy-math",
+  "benchmarks": [
+    "task.json"
+  ]
+}

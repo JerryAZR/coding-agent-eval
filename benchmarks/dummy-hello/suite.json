@@ -1,0 +1,6 @@
+{
+  "name": "dummy-hello",
+  "benchmarks": [
+    "task.json"
+  ]
+}

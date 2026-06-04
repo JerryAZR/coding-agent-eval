@@ -1,0 +1,19 @@
+{
+  "id": "dummy-retry",
+  "name": "Dummy Retry",
+  "description": "Vague prompt that requires feedback to succeed on retry",
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "Vague greeting",
+      "promptFile": "prompts/phase-1.md",
+      "points": 10,
+      "maxAttempts": 3
+    }
+  ],
+  "testsPath": "tests",
+  "scoring": {
+    "penaltyPerAttempt": 2,
+    "penaltyFloor": 4
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "dummy-smoke",
+  "name": "Dummy Smoke",
+  "description": "Always-passes sanity check for the end-to-end loop",
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "Smoke test",
+      "promptFile": "prompts/phase-1.md",
+      "points": 10,
+      "maxAttempts": 1
+    }
+  ],
+  "testsPath": "tests"
+}

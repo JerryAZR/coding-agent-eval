@@ -1,0 +1,15 @@
+{
+  "id": "dummy-suite",
+  "name": "Dummy Suite",
+  "description": "Meta benchmark for the full dummy suite",
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "Suite placeholder",
+      "promptFile": "prompts/phase-1.md",
+      "points": 1,
+      "maxAttempts": 1
+    }
+  ],
+  "testsPath": "tests"
+}
