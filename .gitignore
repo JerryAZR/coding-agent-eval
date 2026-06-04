@@ -1,23 +1,30 @@
+# Agent template directory — committed as reference, ignored to avoid tracking API keys
+# and local modifications. If you need to update the reference, use:
+#   git add -f templates/pi/<file>
+templates/pi/
+
+# Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
 *.egg-info/
 .eggs/
 dist/
 build/
-*.egg
-.pytest_cache/
-.mypy_cache/
-.coverage
-htmlcov/
-.tox/
+
+# Virtual environments
 .venv/
 venv/
-ENV/
-env/
-*.log
-*.swp
-*.swo
-*~
+
+# OS
 .DS_Store
 Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Benchmark runs
+runs/

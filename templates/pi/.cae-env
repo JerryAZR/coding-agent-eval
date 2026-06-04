@@ -1,8 +1,0 @@
-# Environment variables passed to the worker process.
-# Simple KEY=value pairs only. Comments and blank lines are ignored.
-
-# Example: set a default model for pi
-# PI_MODEL=gpt-4o
-
-# Example: enable verbose logging
-# PI_VERBOSE=1
