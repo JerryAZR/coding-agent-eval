@@ -17,6 +17,7 @@ from .agent_client import (
     PHASE_COMPLETE_MARKER,
     AgentClient,
     TurnResult,
+    _CLIENTS,
     get_client,
 )
 from .protocol import Volume
@@ -169,7 +170,6 @@ def run_worker(
         return 1
     return 0
 
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="CAE worker support process")
     parser.add_argument(
@@ -181,9 +181,6 @@ def main(argv: list[str] | None = None) -> int:
         default=5.0,
         help="Seconds to wait after agent_end before submitting",
     )
-    parser.add_argument(
-        "--agent-mode", default="pi", help="Agent harness mode (pi, echo, ...)"
-    )
     parser.add_argument("--agent-cmd", help="Custom agent command (space-separated)")
     args = parser.parse_args(argv)
 
@@ -193,7 +190,7 @@ def main(argv: list[str] | None = None) -> int:
     agent_cmd = args.agent_cmd.split() if args.agent_cmd else None
 
     # Auto-import agent adapters from impl/agent/ so @register_client
-    # decorators are executed before get_client looks up the mode.
+    # decorators are executed.
     agent_dir = impl_dir / "agent"
     if agent_dir.exists() and agent_dir.is_dir():
         import importlib
@@ -208,9 +205,26 @@ def main(argv: list[str] | None = None) -> int:
                     file=sys.stderr,
                 )
 
+    if len(_CLIENTS) == 0:
+        print(
+            "Error: no agent client registered. "
+            "Ensure your template's agent/ package contains a @register_client decorated class.",
+            file=sys.stderr,
+        )
+        return 1
+    if len(_CLIENTS) > 1:
+        print(
+            f"Error: multiple agents registered: {list(_CLIENTS.keys())}. "
+            "Only one agent per template is allowed.",
+            file=sys.stderr,
+        )
+        return 1
+
+    mode = next(iter(_CLIENTS))
+
     def client_factory() -> AgentClient:
         return get_client(
-            args.agent_mode,
+            mode,
             agent_cmd=agent_cmd,
             idle_timeout=args.idle_timeout,
         )

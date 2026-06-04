@@ -215,8 +215,6 @@ def register_client(name: str):
     return decorator
 
 
-register_client("pi")(PiOneShotClient)
-register_client("echo")(EchoClient)
 
 
 def get_client(

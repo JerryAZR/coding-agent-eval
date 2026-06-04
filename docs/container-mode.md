@@ -102,22 +102,18 @@ Bake the CAE framework into the image so no source bind-mount is needed:
 
 ```bash
 ./scripts/build-images.sh podman cae-worker-standalone cae-tester-standalone
-podman run -v /host/run:/run:Z cae-worker-standalone --volume /run --agent-mode echo
+podman run -v /host/run:/run:Z cae-worker-standalone --volume /run
 ```
-
 ## CLI Flags
 
 Container mode adds these flags to `cae run`:
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--mode container` | `local` | Enable container mode |
 | `--engine` | `podman` | Container engine (`podman` or `docker`) |
 | `--worker-image` | `cae-worker-base` | Worker container image |
 | `--tester-image` | `cae-tester-base` | Tester container image |
 | `--agent-mount` | — | `HOST:CONTAINER` bind-mount (repeatable) |
-
-## Security
 
 - **Rootless**: Containers run as your host user via `--userns=keep-id`
 - **No privilege**: No `--privileged`, no dangerous capabilities

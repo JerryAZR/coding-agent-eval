@@ -305,7 +305,6 @@ def run_group(
     runtime: Runtime,
     max_total_time: float = 3600,
     agent_cmd: list[str] | None = None,
-    agent_mode: str = "pi",
     template_dir: Path | str | None = None,
 ) -> Score:
     """Run a single benchmark (one task group) to completion or first failure.
@@ -350,7 +349,7 @@ def run_group(
     worker_proc = None
 
     try:
-        worker_proc = runtime.spawn_worker(volume, agent_cmd, agent_mode)
+        worker_proc = runtime.spawn_worker(volume, agent_cmd)
 
         # Prime the first phase before entering the phase loop.
         setup_volume(volume, benchmark, benchmark.phases[0], attempt=1)
@@ -400,7 +399,6 @@ def run_suite(
     runtime: Runtime,
     max_total_time: float = 3600,
     agent_cmd: list[str] | None = None,
-    agent_mode: str = "pi",
     template_dir: Path | str | None = None,
 ) -> list[Score]:
     """Run multiple benchmarks (groups) sequentially.
@@ -428,7 +426,6 @@ def run_suite(
             runtime=runtime,
             max_total_time=max_total_time,
             agent_cmd=agent_cmd,
-            agent_mode=agent_mode,
             template_dir=template_dir,
         )
         scores.append(score)

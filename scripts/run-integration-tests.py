@@ -9,9 +9,10 @@ from pathlib import Path
 
 PYTHONPATH = str(Path(__file__).parent.parent / "src")
 BASE = Path(__file__).parent.parent
+ECHO_TEMPLATE = str(BASE / "templates" / "echo")
 
 
-def run_suite(suite_path: str, agent_mode: str = "echo", agent_cmd: str | None = None) -> tuple[bool, list, str]:
+def run_suite(suite_path: str, agent_cmd: str | None = None) -> tuple[bool, list, str]:
     """Run a suite, return (ok, parsed_scores, stderr)."""
     with tempfile.TemporaryDirectory() as tmpdir:
         cmd = [
@@ -19,7 +20,7 @@ def run_suite(suite_path: str, agent_mode: str = "echo", agent_cmd: str | None =
             "run",
             "--suite", suite_path,
             "--volume", tmpdir,
-            "--agent-mode", agent_mode,
+            "--agent-template", ECHO_TEMPLATE,
             "--max-time", "120",
         ]
         if agent_cmd:
@@ -93,7 +94,7 @@ def check_invariants(run_dir: Path, suite_name: str) -> list[str]:
 def main() -> int:
     suite_path = str(BASE / "benchmarks" / "test-suite" / "suite.json")
 
-    ok, scores, stderr = run_suite(suite_path, agent_mode="echo")
+    ok, scores, stderr = run_suite(suite_path)
     if not ok:
         print("FAIL: Could not parse suite output")
         print(stderr)
@@ -143,7 +144,7 @@ def main() -> int:
                 sys.executable, "-m", "cae", "run",
                 "--suite", suite_path,
                 "--volume", tmpdir,
-                "--agent-mode", "echo",
+                "--agent-template", ECHO_TEMPLATE,
                 "--max-time", "120",
             ],
             env={**os.environ, "PYTHONPATH": PYTHONPATH},

@@ -23,7 +23,6 @@ class Runtime(ABC):
         self,
         volume: Volume,
         agent_cmd: list[str] | None = None,
-        agent_mode: str = "pi",
     ) -> subprocess.Popen:
         """Start the worker process.
 
@@ -103,17 +102,14 @@ def _worker_python(volume: Volume) -> str:
 
 class LocalRuntime(Runtime):
     """Local subprocess-based runtime."""
-
     def spawn_worker(
         self,
         volume: Volume,
         agent_cmd: list[str] | None = None,
-        agent_mode: str = "pi",
     ) -> subprocess.Popen:
         cmd = [
             _worker_python(volume), "-m", "cae.worker",
             "--volume", str(volume.root.absolute()),
-            "--agent-mode", agent_mode,
         ]
         if agent_cmd:
             cmd += ["--agent-cmd", " ".join(agent_cmd)]
@@ -201,12 +197,10 @@ class ContainerRuntime(Runtime):
 
     def _mount(self, host: Path | str, container: str) -> str:
         return f"-v{host}:{container}:Z"
-
     def spawn_worker(
         self,
         volume: Volume,
         agent_cmd: list[str] | None = None,
-        agent_mode: str = "pi",
     ) -> subprocess.Popen:
         run_dir = volume.root.absolute()
         impl_dir = run_dir / "impl"
@@ -245,7 +239,6 @@ class ContainerRuntime(Runtime):
             self.worker_image,
             python_cmd, "-m", "cae.worker",
             "--volume", "/run",
-            "--agent-mode", agent_mode,
         ])
 
         if agent_cmd:
@@ -257,7 +250,6 @@ class ContainerRuntime(Runtime):
             stderr=subprocess.PIPE,
             text=True,
         )
-
     def spawn_tester(self, volume: Volume, benchmark: Benchmark, phase_id: str) -> subprocess.CompletedProcess:
         run_dir = volume.root.absolute()
         benchmark_dir = benchmark.base_dir.resolve()

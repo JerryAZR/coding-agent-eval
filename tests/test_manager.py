@@ -32,7 +32,7 @@ class MockRuntime(Runtime):
         self.worker_proc = worker_proc
         self.result_factory = result_factory
 
-    def spawn_worker(self, volume, agent_cmd=None, agent_mode="pi"):
+    def spawn_worker(self, volume, agent_cmd=None):
         return self.worker_proc
 
     def spawn_tester(self, volume, benchmark, phase_id):

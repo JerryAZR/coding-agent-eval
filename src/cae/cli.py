@@ -15,7 +15,6 @@ def main(argv: list[str] | None = None) -> int:
     run_parser = subparsers.add_parser("run", help="Run a benchmark suite")
     run_parser.add_argument("--suite", required=True, help="Path to suite config JSON")
     run_parser.add_argument("--volume", default=".", help="Parent directory for benchmark runs")
-    run_parser.add_argument("--agent-mode", default="pi", help="Agent harness mode (pi, echo, ...)")
     run_parser.add_argument("--agent-template", help="Path to agent template directory")
     run_parser.add_argument("--max-time", type=float, default=3600)
     run_parser.add_argument("--agent-cmd", help="Custom agent command (space-separated)")
@@ -62,7 +61,6 @@ def main(argv: list[str] | None = None) -> int:
             runtime=runtime,
             max_total_time=args.max_time,
             agent_cmd=agent_cmd,
-            agent_mode=args.agent_mode,
             template_dir=args.agent_template,
         )
         print(json.dumps([s.to_dict() for s in scores], indent=2))

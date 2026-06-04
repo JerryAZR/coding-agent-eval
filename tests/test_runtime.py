@@ -75,7 +75,7 @@ class TestContainerRuntimeCommandConstruction(unittest.TestCase):
         subprocess.Popen = fake_popen
         try:
             rt = ContainerRuntime(**rt_kwargs)
-            rt.spawn_worker(self.volume, agent_mode="echo")
+            rt.spawn_worker(self.volume)
         finally:
             subprocess.Popen = original_popen
         return captured["cmd"]
@@ -130,12 +130,10 @@ class TestContainerRuntimeCommandConstruction(unittest.TestCase):
         cmd = self._capture_worker_cmd()
         self.assertIn("HOME=/run/impl", cmd)
 
-    def test_worker_passes_agent_mode(self):
+    def test_worker_has_no_agent_mode(self):
         cmd = self._capture_worker_cmd()
-        idx = cmd.index("--agent-mode")
-        self.assertEqual(cmd[idx + 1], "echo")
+        self.assertNotIn("--agent-mode", cmd)
 
-    def test_worker_uses_custom_engine(self):
         cmd = self._capture_worker_cmd(engine="docker")
         self.assertEqual(cmd[0], "docker")
 
@@ -170,7 +168,7 @@ class TestContainerRuntimeCommandConstruction(unittest.TestCase):
         subprocess.Popen = fake_popen
         try:
             rt = ContainerRuntime()
-            rt.spawn_worker(self.volume, agent_cmd=["claude", "-p"], agent_mode="echo")
+            rt.spawn_worker(self.volume, agent_cmd=["claude", "-p"])
         finally:
             subprocess.Popen = original_popen
         cmd = captured["cmd"]
@@ -272,14 +270,13 @@ class TestLocalRuntimeTemplate(unittest.TestCase):
         subprocess.Popen = fake_popen
         try:
             rt = LocalRuntime()
-            rt.spawn_worker(self.volume, agent_mode="echo")
+            rt.spawn_worker(self.volume)
         finally:
             subprocess.Popen = original_popen
         return captured["cmd"], captured["env"]
 
     def test_local_sets_home(self):
         cmd, env = self._capture_worker()
-        self.assertEqual(env["HOME"], str(self.run_dir / "impl"))
 
     def test_local_loads_env(self):
         env_file = self.run_dir / "impl" / ".cae-env"

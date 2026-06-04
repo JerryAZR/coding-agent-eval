@@ -1,6 +1,6 @@
 # Agent Template Contract
 
-An **agent template** is a directory that packages everything an agent needs to run inside the CAE evaluation environment: configuration files, environment variables, a Python virtual environment, a startup script, and optionally its Python adapter.
+An **agent template** is a directory that packages everything an agent needs to run inside the CAE evaluation environment: configuration files, environment variables, a Python virtual environment, a startup script, and its Python adapter.
 
 The framework copies the template into the agent's workspace (`impl/`) before the benchmark begins and sets `$HOME` to that workspace. This means agent configs, session histories, and virtual environments all live in the same persistent directory that survives across turns and phases.
 
@@ -16,9 +16,9 @@ template/
 │   │   ├── pip
 │   │   └── my-agent      # Agent binary installed in venv
 │   └── lib/python3.11/site-packages/
-├── agent/                # Optional: Python adapter module (added to PYTHONPATH)
+├── agent/                # Required: Python adapter module (added to PYTHONPATH)
 │   ├── __init__.py
-│   └── my_adapter.py     # @register_client("my-agent") class lives here
+│   └── my_adapter.py     # @register_client decorated class lives here
 ├── .pi/                  # Agent config/session storage (example: pi sessions)
 │   └── agent/
 │       └── sessions/
@@ -117,9 +117,11 @@ ENV PATH="/opt/agent-venv/bin:${PATH}"
 
 Then in your template, create a symlink or add `/opt/agent-venv/bin` to PATH via `.cae-env`.
 
-### `agent/` (optional Python adapter)
+### `agent/` (Python adapter)
 
-If present, the framework adds this directory to `PYTHONPATH` before importing the agent client. The directory must be a valid Python package (contains `__init__.py` or is a namespace package).
+Required. The framework adds this directory to `PYTHONPATH` before importing the agent client. The directory must be a valid Python package (contains `__init__.py` or is a namespace package).
+
+Your adapter must register **exactly one** client class with `@register_client`. The framework discovers the agent dynamically by importing the `agent/` package and checking what was registered. If zero or more than one client is registered, the benchmark fails immediately.
 
 Example `agent/my_adapter.py`:
 ```python
@@ -131,8 +133,7 @@ class MyAgentClient(OneShotAgentClient):
         return ["my-agent", "--prompt", prompt]
 ```
 
-The agent mode name passed via `--agent-mode` must match the `@register_client` decorator. See `docs/user-guide-other-harnesses.md` for the full adapter authoring guide.
-
+The registration name is arbitrary — it only needs to be unique within this template. The framework does not look up agents by name; it uses whatever single client the template registered. See `docs/user-guide-other-harnesses.md` for the full adapter authoring guide.
 ## Execution Order
 
 When a benchmark starts, the framework performs these steps in order:
@@ -146,22 +147,12 @@ When a benchmark starts, the framework performs these steps in order:
 7. **Run startup**: Execute `.cae-startup.sh` (if present), with venv activated
 8. **Start worker**: Spawn the worker process/container
 9. **Start loop**: Manager writes first task, waits for ready marker
-
 ## CLI Usage
 
 ```bash
-# Local mode with template
+# Run with a custom agent template
 cae run \
-  --mode local \
   --suite benchmarks/my-suite/suite.json \
-  --agent-mode my-agent \
-  --agent-template ./templates/my-agent/
-
-# Container mode with template
-cae run \
-  --mode container \
-  --suite benchmarks/my-suite/suite.json \
-  --agent-mode my-agent \
   --agent-template ./templates/my-agent/ \
   --worker-image cae-worker-base
 ```

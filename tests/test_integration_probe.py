@@ -40,7 +40,6 @@ class TestProbeTemplateContainer(unittest.TestCase):
                 "run",
                 "--suite", str(PROBE_BENCH / "suite.json"),
                 "--volume", str(self.volume_dir),
-                "--agent-mode", "probe",
                 "--agent-template", str(PROBE_TEMPLATE),
             ],
             capture_output=True,
