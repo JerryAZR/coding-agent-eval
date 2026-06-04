@@ -1,1 +1,1 @@
-Read the number in `output.txt`, multiply it by 3, and overwrite the file with the new result (just the number, no extra text). Then signal that you are done.
+Read the number in `output.txt`, multiply it by 3, and write the result (just the number, no extra text) to a file named `phase2.txt` in the current directory. Do not modify `output.txt`. Then signal that you are done.

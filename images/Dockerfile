@@ -13,9 +13,12 @@ ARG DEBIAN_VERSION=bookworm
 # ---------------------------------------------------------------------------
 # Base
 # ---------------------------------------------------------------------------
-FROM python:${PYTHON_VERSION}-${DEBIAN_VERSION}-slim AS cae-base
+# Note: the official tag is python:3.11-slim-bookworm (slim variant first).
+FROM python:${PYTHON_VERSION}-slim-${DEBIAN_VERSION} AS cae-base
 
-RUN apt-get update \
+RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.tuna.tsinghua.edu.cn/debian|g' /etc/apt/sources.list.d/debian.sources \
+    && sed -i 's|http://deb.debian.org/debian-security|http://mirrors.tuna.tsinghua.edu.cn/debian-security|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
     && apt-get install -y --no-install-recommends bash \
     && rm -rf /var/lib/apt/lists/*
 
@@ -52,7 +55,7 @@ ENV PYTHONPATH=/cae/src
 FROM cae-worker-base AS cae-worker-pi
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/* \
     && npm install -g @earendil-works/pi-coding-agent

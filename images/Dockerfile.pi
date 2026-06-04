@@ -1,0 +1,21 @@
+# Layered pi worker extending the locally-built cae-worker-base.
+# Use this when the upstream python image is not available (e.g. no Docker
+# Hub access) and cae-worker-base was built with build-local-image.sh.
+#
+# Build:
+#   podman build -f images/Dockerfile.pi -t cae-worker-pi .
+
+FROM cae-worker-base
+
+# The base image already has python + bash.
+# Install curl, Node.js 20.x, and the pi coding agent.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm install -g @earendil-works/pi-coding-agent
+
+# `pi` is now in PATH
+LABEL role=worker
+ENTRYPOINT ["python", "-m", "cae.worker"]

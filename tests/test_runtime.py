@@ -145,7 +145,7 @@ class TestContainerRuntimeCommandConstruction(unittest.TestCase):
 
     def test_worker_includes_python_module(self):
         cmd = self._capture_worker_cmd()
-        idx = cmd.index("/usr/bin/python")
+        idx = cmd.index("python")
         self.assertEqual(cmd[idx + 1], "-m")
         self.assertEqual(cmd[idx + 2], "cae.worker")
 

@@ -15,7 +15,6 @@ def main(argv: list[str] | None = None) -> int:
     run_parser = subparsers.add_parser("run", help="Run a benchmark suite")
     run_parser.add_argument("--suite", required=True, help="Path to suite config JSON")
     run_parser.add_argument("--volume", default=".", help="Parent directory for benchmark runs")
-    run_parser.add_argument("--mode", default="local", choices=["local", "container"])
     run_parser.add_argument("--agent-mode", default="pi", help="Agent harness mode (pi, echo, ...)")
     run_parser.add_argument("--agent-template", help="Path to agent template directory")
     run_parser.add_argument("--max-time", type=float, default=3600)
@@ -46,16 +45,15 @@ def main(argv: list[str] | None = None) -> int:
         parent.mkdir(parents=True, exist_ok=True)
 
         runtime_kwargs: dict = {}
-        if args.mode == "container":
-            runtime_kwargs["engine"] = args.engine
-            runtime_kwargs["worker_image"] = args.worker_image
-            runtime_kwargs["tester_image"] = args.tester_image
-            if args.agent_mount:
-                runtime_kwargs["agent_mounts"] = [
-                    tuple(m.split(":", 1)) for m in args.agent_mount
-                ]
+        runtime_kwargs["engine"] = args.engine
+        runtime_kwargs["worker_image"] = args.worker_image
+        runtime_kwargs["tester_image"] = args.tester_image
+        if args.agent_mount:
+            runtime_kwargs["agent_mounts"] = [
+                tuple(m.split(":", 1)) for m in args.agent_mount
+            ]
 
-        runtime = runtime_for_mode(args.mode, **runtime_kwargs)
+        runtime = runtime_for_mode("container", **runtime_kwargs)
         agent_cmd = args.agent_cmd.split() if args.agent_cmd else None
         scores = run_suite(
             benchmarks=benchmarks,

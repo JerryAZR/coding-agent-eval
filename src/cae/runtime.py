@@ -213,8 +213,7 @@ class ContainerRuntime(Runtime):
 
         # Detect venv on host filesystem (template already copied)
         venv_python = impl_dir / ".venv" / "bin" / "python"
-        python_cmd = str(venv_python) if venv_python.exists() else "/usr/bin/python"
-
+        python_cmd = str(venv_python) if venv_python.exists() else "python"
         pythonpath = "/cae/src"
         agent_path = impl_dir / "agent"
         if agent_path.exists() and agent_path.is_dir():
@@ -241,6 +240,7 @@ class ContainerRuntime(Runtime):
             cmd.extend(["-e", "PATH=/run/impl/.venv/bin:/usr/local/bin:/usr/bin:/bin"])
 
         cmd.extend([
+            "--entrypoint", "",
             "-w", "/run/impl",
             self.worker_image,
             python_cmd, "-m", "cae.worker",
@@ -264,12 +264,12 @@ class ContainerRuntime(Runtime):
         tests_script = benchmark.tests_script.resolve()
         tests_rel = tests_script.relative_to(benchmark_dir)
         tests_dir = f"/benchmark/{tests_rel.parent}"
-
         cmd = self._podman_run(self.tester_image, net_none=True)
         cmd.append(self._mount(run_dir, "/run"))
         cmd.append(self._mount(self.src_dir, "/cae/src"))
         cmd.append(self._mount(benchmark_dir, "/benchmark"))
         cmd.extend([
+            "--entrypoint", "",
             "-e", "PYTHONPATH=/cae/src",
             "-e", f"CAE_PHASE={phase_id}",
             "-e", "CAE_ARTIFACT_ROOT=/run/impl",
