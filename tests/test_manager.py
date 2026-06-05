@@ -1,7 +1,7 @@
 """Module-level tests for manager state transitions.
 
 These mock out the Runtime to test decision logic in isolation.
-The mock worker runs in a thread and properly simulates the ready/feedback loop.
+The mock worker runs in a thread and properly simulates the ready loop.
 """
 import json
 import subprocess
@@ -44,7 +44,7 @@ class MockRuntime(Runtime):
 
 
 class MockWorker:
-    """A threaded mock worker that simulates the real worker's ready/feedback loop."""
+    """A threaded mock worker that simulates the real worker's ready loop."""
 
     def __init__(self, volume: Volume):
         self.volume = volume
@@ -55,28 +55,22 @@ class MockWorker:
         self._thread.start()
 
     def _run(self):
-        """Monitor feedback and rewrite ready when appropriate."""
-        last_feedback = None
+        """Monitor prompt and rewrite ready when appropriate."""
         while not self._stop.is_set():
-            fb = self.volume.read_feedback()
-            if fb is not None:
-                if last_feedback is None or fb.to_dict() != last_feedback.to_dict():
-                    last_feedback = fb
-                    if fb.phase_complete and fb.next_phase_id is None:
-                        break
-                    time.sleep(0.1)
-                    if not self._stop.is_set():
-                        try:
-                            self.volume.set_ready()
-                        except OSError:
-                            break
-            else:
-                if not self.volume.is_ready() and not self._stop.is_set():
+            prompt = self.volume.read_prompt()
+            if prompt is not None:
+                self.volume.delete_prompt()
+                time.sleep(0.1)
+                if not self._stop.is_set():
                     try:
                         self.volume.set_ready()
                     except OSError:
                         break
-            time.sleep(0.1)
+                # Wait for ready to clear
+                while self.volume.is_ready() and not self._stop.is_set():
+                    time.sleep(0.1)
+            else:
+                time.sleep(0.1)
 
     def stop(self):
         self._stop.set()
@@ -202,10 +196,45 @@ class TestManagerTransitions(unittest.TestCase):
         self.assertEqual(score.phases["phase-1"]["attempts"], 3)
         self.assertFalse(score.phases["phase-1"]["best"])
         self.assertNotIn("phase-2", score.phases)
-        fb = volume.read_feedback()
-        self.assertIsNotNone(fb)
-        self.assertTrue(fb.phase_complete)
-        self.assertIsNone(fb.next_phase_id)
+    def test_phase_timeout_ends_benchmark(self):
+        """A phase with a short max_time times out if worker hangs."""
+        bench_dir = self.base / "timed-benchmark"
+        bench_dir.mkdir()
+        (bench_dir / "prompts").mkdir()
+        (bench_dir / "prompts" / "p1.md").write_text("Phase 1 prompt")
+
+        tests_dir = bench_dir / "tests"
+        tests_dir.mkdir()
+        (tests_dir / "run.sh").write_text("#!/bin/bash\nexit 0\n")
+        (tests_dir / "run.sh").chmod(0o755)
+
+        task = {
+            "id": "timed-bench",
+            "phases": [
+                {"id": "phase-1", "promptFile": "prompts/p1.md", "maxAttempts": 3, "points": 10, "maxTime": 0.1},
+                {"id": "phase-2", "promptFile": "prompts/p2.md", "maxAttempts": 3, "points": 20},
+            ],
+            "tests": {"script": "tests/run.sh"},
+            "scoring": {"penaltyPerAttempt": 0, "penaltyFloor": 0},
+        }
+        with open(bench_dir / "task.json", "w") as f:
+            json.dump(task, f)
+
+        benchmark = Benchmark.load(bench_dir / "task.json")
+
+        # Worker that never sets ready (simulates hung agent)
+        proc = MagicMock()
+        proc.poll.return_value = None
+        runtime = MockRuntime(worker_proc=proc)
+
+        score = run_group(
+            benchmark, self.volume_path, runtime=runtime, max_total_time=30
+        )
+
+        self.assertEqual(score.total_points, 0)
+        # Phase timed out before any attempt completed
+        self.assertEqual(score.phases.get("phase-1", {}).get("attempts", 0), 0)
+        self.assertNotIn("phase-2", score.phases)
 
     def test_worker_exits_early(self):
         proc = MagicMock()
@@ -218,7 +247,7 @@ class TestManagerTransitions(unittest.TestCase):
 
         self.assertEqual(score.total_points, 0)
 
-    def test_feedback_written_on_pass(self):
+    def test_score_written_on_pass(self):
         volume = Volume(self.volume_path)
         volume.ensure_dirs()
 
@@ -234,10 +263,9 @@ class TestManagerTransitions(unittest.TestCase):
             self.benchmark, self.volume_path, runtime=runtime, max_total_time=30
         )
 
-        fb = volume.read_feedback()
-        self.assertIsNotNone(fb)
-        self.assertTrue(fb.phase_complete)
-        self.assertIsNone(fb.next_phase_id)
+        score = volume.read_score()
+        self.assertIsNotNone(score)
+        self.assertEqual(score.total_points, 30)
 
 
 if __name__ == "__main__":

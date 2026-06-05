@@ -36,7 +36,7 @@ class MyAgentClient(AgentClient):
 - `output: str` — The agent's visible output (last non-empty line checked for `<CAE_PHASE_COMPLETE/>`)
 - `details: str` — Optional stdout/stderr for debugging
 
-The worker handles all volume protocol interaction (`.cae/task.json`, `.cae/feedback.json`, `.cae/ready`). Your adapter just runs the agent.
+The worker handles all volume protocol interaction (`.cae/prompt.md`, `.cae/ready`). Your adapter just runs the agent.
 
 ## How Discovery Works
 

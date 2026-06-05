@@ -40,7 +40,9 @@ A benchmark is a self-contained directory consumed by the framework via `--suite
       "maxAttempts": 3
     }
   ],
-  "testsPath": "tests",
+  "tests": {
+    "script": "tests/run.sh"
+  },
   "scoring": {
     "penaltyPerAttempt": 2,
     "penaltyFloor": 0
@@ -54,10 +56,11 @@ The tester support process:
 1. Receives the path to `task.json` and the current phase ID
 2. Sets `CAE_ARTIFACT_ROOT` to the `impl/` directory (agent workspace)
 3. Sets `CAE_PHASE` to the current phase ID
-4. Runs `tests/run.sh` from the benchmark directory
+4. Runs `tests/run.sh` **once** with the current phase ID
 5. `run.sh` must exit 0 on success, non-zero on failure
 6. Results are written by the tester to `test/results/latest.json`
 
+**Regression testing is the designer's responsibility.** If phase 2 builds on phase 1, your `run.sh` should validate both when called with `CAE_PHASE=phase-2`. The framework does not automatically re-run prior phases.
 ## Suite Config
 
 A suite references one or more benchmarks:
@@ -97,6 +100,5 @@ Quick smoke tests for verifying the end-to-end loop:
 PYTHONPATH=src python -m cae run \
   --suite benchmarks/dummy-suite/suite.json \
   --volume /tmp/dummy-runs \
-  --agent-mode pi \
   --agent-template templates/pi
 ```

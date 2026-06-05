@@ -75,14 +75,15 @@ def apply_template(impl_dir: Path, template_dir: Path) -> TemplateInfo:
     env_file = impl_dir / ".cae-env"
     env = _parse_env_file(env_file) if env_file.exists() else {}
 
-    venv_python = impl_dir / ".venv" / "bin" / "python"
-    venv_python = venv_python if venv_python.exists() else None
+    _venv_python = impl_dir / ".venv" / "bin" / "python"
+    venv_python: Path | None = _venv_python if _venv_python.exists() else None
 
-    agent_path = impl_dir / "agent"
-    agent_path = agent_path if agent_path.exists() and agent_path.is_dir() else None
+    _agent_path = impl_dir / "agent"
+    agent_path: Path | None = _agent_path if _agent_path.exists() and _agent_path.is_dir() else None
 
-    startup_script = impl_dir / ".cae-startup.sh"
-    startup_script = startup_script if startup_script.exists() else None
+    _startup_script = impl_dir / ".cae-startup.sh"
+    startup_script: Path | None = _startup_script if _startup_script.exists() else None
+
 
     return TemplateInfo(
         env=env,

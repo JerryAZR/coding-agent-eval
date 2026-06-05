@@ -10,31 +10,9 @@ import unittest
 
 from cae.protocol import (
     Volume,
-    TaskState,
     TestResult,
-    Feedback,
     Score,
 )
-
-
-class TestTaskStateSerialization(unittest.TestCase):
-    def test_roundtrip(self):
-        original = TaskState(
-            benchmark_id="bench-1",
-            phase_id="phase-1",
-            attempt=2,
-            prompt="Build a CLI tool.",
-            max_attempts=3,
-            points=10,
-        )
-        d = original.to_dict()
-        restored = TaskState.from_dict(d)
-        self.assertEqual(restored.benchmark_id, "bench-1")
-        self.assertEqual(restored.phase_id, "phase-1")
-        self.assertEqual(restored.attempt, 2)
-        self.assertEqual(restored.prompt, "Build a CLI tool.")
-        self.assertEqual(restored.max_attempts, 3)
-        self.assertEqual(restored.points, 10)
 
 
 class TestTestResultSerialization(unittest.TestCase):
@@ -57,38 +35,6 @@ class TestTestResultSerialization(unittest.TestCase):
         restored = TestResult.from_dict(d)
         self.assertEqual(restored.details, "")
         self.assertEqual(restored.exit_code, 1)
-
-
-class TestFeedbackSerialization(unittest.TestCase):
-    def test_roundtrip(self):
-        original = Feedback(
-            phase_id="phase-1",
-            attempt=2,
-            passed=False,
-            message="Syntax error",
-            phase_complete=False,
-            next_phase_id="phase-2",
-        )
-        d = original.to_dict()
-        restored = Feedback.from_dict(d)
-        self.assertEqual(restored.phase_id, "phase-1")
-        self.assertFalse(restored.passed)
-        self.assertEqual(restored.message, "Syntax error")
-        self.assertFalse(restored.phase_complete)
-        self.assertEqual(restored.next_phase_id, "phase-2")
-
-    def test_next_phase_none(self):
-        original = Feedback(
-            phase_id="phase-1",
-            attempt=1,
-            passed=True,
-            message="Done",
-            phase_complete=True,
-            next_phase_id=None,
-        )
-        d = original.to_dict()
-        restored = Feedback.from_dict(d)
-        self.assertIsNone(restored.next_phase_id)
 
 
 class TestScoreSerialization(unittest.TestCase):
@@ -118,40 +64,25 @@ class TestVolumeOperations(unittest.TestCase):
         self.assertTrue(self.volume.cae.exists())
         self.assertTrue(self.volume.results.exists())
 
-    def test_write_and_read_task(self):
-        task = TaskState(
-            benchmark_id="b1",
-            phase_id="p1",
-            attempt=1,
-            prompt="Build it",
-            max_attempts=3,
-            points=10,
-        )
-        self.volume.write_task(task)
-        restored = self.volume.read_task()
+    def test_write_and_read_prompt(self):
+        self.volume.write_prompt("Build a CLI tool.")
+        restored = self.volume.read_prompt()
         self.assertIsNotNone(restored)
-        self.assertEqual(restored.phase_id, "p1")
-        self.assertEqual(restored.prompt, "Build it")
+        self.assertEqual(restored, "Build a CLI tool.")
 
-    def test_read_task_missing(self):
-        self.assertIsNone(self.volume.read_task())
+    def test_read_prompt_missing(self):
+        self.assertIsNone(self.volume.read_prompt())
 
-    def test_write_and_read_feedback(self):
-        fb = Feedback(
-            phase_id="p1",
-            attempt=1,
-            passed=True,
-            message="OK",
-            phase_complete=True,
-            next_phase_id=None,
-        )
-        self.volume.write_feedback(fb)
-        restored = self.volume.read_feedback()
-        self.assertTrue(restored.passed)
-        self.assertTrue(restored.phase_complete)
+    def test_delete_prompt(self):
+        self.volume.write_prompt("test")
+        self.assertIsNotNone(self.volume.read_prompt())
+        self.volume.delete_prompt()
+        self.assertIsNone(self.volume.read_prompt())
 
-    def test_read_feedback_missing(self):
-        self.assertIsNone(self.volume.read_feedback())
+    def test_delete_prompt_idempotent(self):
+        """Deleting a non-existent prompt should not raise."""
+        self.volume.delete_prompt()
+        self.assertIsNone(self.volume.read_prompt())
 
     def test_write_and_read_score(self):
         score = Score(
@@ -188,16 +119,6 @@ class TestVolumeOperations(unittest.TestCase):
         """Clearing a non-existent marker should not raise."""
         self.volume.clear_ready()
         self.assertFalse(self.volume.is_ready())
-
-    def test_feedback_change_detection(self):
-        """Two feedback writes with same content should produce identical dicts."""
-        fb1 = Feedback("p1", 1, True, "ok", True, None)
-        fb2 = Feedback("p1", 1, True, "ok", True, None)
-        self.volume.write_feedback(fb1)
-        d1 = self.volume.read_feedback().to_dict()
-        self.volume.write_feedback(fb2)
-        d2 = self.volume.read_feedback().to_dict()
-        self.assertEqual(d1, d2)
 
 
 if __name__ == "__main__":

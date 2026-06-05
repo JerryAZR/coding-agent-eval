@@ -11,13 +11,12 @@ Built-in clients cover the two common paradigms:
 """
 from __future__ import annotations
 
-import random
 import subprocess
 import sys
-import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Callable
 
 
 # Marker the agent must emit in its output when it has truly completed work.
@@ -47,11 +46,14 @@ class AgentClient(ABC):
     must implement session persistence internally.
     """
 
+    def __init__(self, **kwargs: Any) -> None:
+        pass
+
     @abstractmethod
     def run_turn(
         self,
         prompt: str,
-        env: dict,
+        env: dict[str, str],
         cwd: Path,
         system_prompt_append: str = "",
     ) -> TurnResult:
@@ -64,10 +66,6 @@ class AgentClient(ABC):
         ...
 
 
-# ---------------------------------------------------------------------------
-# Built-in clients
-# ---------------------------------------------------------------------------
-
 class OneShotAgentClient(AgentClient):
     """Client for one-shot CLI agents (e.g. claude, aider).
 
@@ -76,7 +74,7 @@ class OneShotAgentClient(AgentClient):
     ``--session-id`` or state files written to *cwd*).
     """
 
-    def __init__(self, agent_cmd: list[str] | None = None, **kwargs):
+    def __init__(self, agent_cmd: list[str] | None = None, **kwargs: Any) -> None:
         self.agent_cmd = agent_cmd or []
         self.state = None
 
@@ -87,14 +85,14 @@ class OneShotAgentClient(AgentClient):
         """
         return [*self.agent_cmd, prompt]
 
-    def extract_state(self, result: subprocess.CompletedProcess):
+    def extract_state(self, result: subprocess.CompletedProcess[str]) -> Any:
         """Parse state from stdout for the next turn. Optional."""
         return None
 
     def run_turn(
         self,
         prompt: str,
-        env: dict,
+        env: dict[str, str],
         cwd: Path,
         system_prompt_append: str = "",
     ) -> TurnResult:
@@ -135,69 +133,6 @@ class OneShotAgentClient(AgentClient):
             )
 
 
-class PiOneShotClient(OneShotAgentClient):
-    """One-shot pi client using -p with persistent --session-id.
-
-    Each turn starts a fresh pi process, but all turns share the same
-    session so the agent retains context across retries and phases.
-    Sessions are saved to disk for later analysis.
-    """
-
-    def __init__(self, agent_cmd: list[str] | None = None, **kwargs):
-        # agent_cmd is ignored; pi binary is hardcoded
-        super().__init__(agent_cmd=[])
-        self.session_id = str(uuid.uuid4())
-
-    def build_cmd(self, prompt: str) -> list[str]:
-        return [
-            "pi",
-            "-p", prompt,
-            "--session-id", self.session_id,
-            "--name", f"cae-{self.session_id[:8]}",
-        ]
-
-    def extract_state(self, result: subprocess.CompletedProcess):
-        # Session persistence is handled by pi itself via --session-id
-        return None
-
-
-class EchoClient(AgentClient):
-    """Test harness: writes the prompt to output.txt and randomly signals completion.
-
-    Used by integration tests to verify the framework protocol without
-    requiring a real agent.  On first ``run_turn`` it writes the clean
-    prompt to *cwd*/output.txt.  It also creates a session marker file
-    so tests can detect if multiple EchoClient instances were spawned
-    for the same benchmark.
-    """
-
-    def __init__(self, **kwargs):
-        self._wrote_output = False
-        self._session_id = str(uuid.uuid4())
-
-    def run_turn(
-        self,
-        prompt: str,
-        env: dict,
-        cwd: Path,
-        system_prompt_append: str = "",
-    ) -> TurnResult:
-        if not self._wrote_output:
-            self._wrote_output = True
-            # Write a session marker to detect accidental respawning.
-            (cwd / ".cae-echo-session").write_text(self._session_id)
-            # Strip the system_prompt_append before persisting the "impl".
-            clean = prompt
-            if system_prompt_append and clean.endswith(system_prompt_append):
-                clean = clean[: -len(system_prompt_append)].rstrip()
-            (cwd / "output.txt").write_text(clean)
-
-        # Randomly include the completion marker (simulates an agent that
-        # sometimes asks questions before finishing).
-        output = prompt if random.random() > 0.3 else prompt + "\n" + PHASE_COMPLETE_MARKER
-        return TurnResult(success=True, output=output)
-
-
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
@@ -205,10 +140,10 @@ class EchoClient(AgentClient):
 _CLIENTS: dict[str, type[AgentClient]] = {}
 
 
-def register_client(name: str):
+def register_client(name: str) -> Callable[[type[AgentClient]], type[AgentClient]]:
     """Decorator to register an AgentClient subclass."""
 
-    def decorator(cls: type[AgentClient]):
+    def decorator(cls: type[AgentClient]) -> type[AgentClient]:
         _CLIENTS[name] = cls
         return cls
 

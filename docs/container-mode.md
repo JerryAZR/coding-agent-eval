@@ -10,10 +10,8 @@ Container mode runs the worker and tester in rootless Podman containers for full
 
 # 2. Run with container mode
 PYTHONPATH=src python -m cae run \
-  --mode container \
   --suite benchmarks/nlm-eval/suite.json
 ```
-
 ## Architecture
 
 ```
@@ -79,21 +77,17 @@ RUN apt-get update && apt-get install -y nodejs npm \
 Build and use:
 
 ```bash
-podman build -t cae-worker-pi -f Dockerfile.pi .
-PYTHONPATH=src python -m cae run --mode container --worker-image cae-worker-pi ...
+PYTHONPATH=src python -m cae run --worker-image cae-worker-pi ...
 ```
-
 ### Option B: Bind-Mount It
 
 If your agent is a single binary or directory on the host:
 
 ```bash
 PYTHONPATH=src python -m cae run \
-  --mode container \
   --agent-mount /usr/local/bin/pi:/usr/local/bin/pi \
   --suite benchmarks/nlm-eval/suite.json
 ```
-
 Repeat `--agent-mount` for multiple directories.
 
 ### Option C: Use Standalone Image

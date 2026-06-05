@@ -22,6 +22,11 @@ PROBE_BENCH = Path(__file__).parent / "fixtures" / "probe-benchmark"
 PROBE_TEMPLATE = Path(__file__).parent / "fixtures" / "probe-template"
 
 
+def _image_exists(name: str) -> bool:
+    result = subprocess.run(["podman", "image", "exists", name], capture_output=True)
+    return result.returncode == 0
+
+
 class TestProbeTemplateContainer(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -32,7 +37,12 @@ class TestProbeTemplateContainer(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    @unittest.skipUnless(shutil.which("podman"), "podman not available")
+    @unittest.skipUnless(
+        shutil.which("podman")
+        and _image_exists("cae-worker-base")
+        and _image_exists("cae-tester-base"),
+        "podman or required CAE images not available",
+    )
     def test_container_mode_with_probe_template(self):
         result = subprocess.run(
             [

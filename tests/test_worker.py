@@ -13,15 +13,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from cae.agent_client import (
     COMPLETION_INSTRUCTION,
-    EchoClient,
     PHASE_COMPLETE_MARKER,
     TurnResult,
     AgentClient,
 )
-from cae.protocol import Feedback, TaskState, Volume
-from cae.worker import run_worker, _check_completion, MAX_CRASH_RETRIES, _run_startup_script
-
-
+from cae.protocol import Volume
+from cae.worker import run_worker, _check_completion, MAX_CRASH_RETRIES, _run_startup_script, _discover_clients
 def _apply_fast_sleep(mock_time):
     mock_time.sleep = lambda _x: None
 
@@ -38,55 +35,6 @@ class TestCheckCompletion(unittest.TestCase):
 
     def test_whitespace_around_marker(self):
         self.assertTrue(_check_completion("work\n  <CAE_PHASE_COMPLETE/>  \n"))
-
-
-class TestEchoClient(unittest.TestCase):
-    def setUp(self):
-        self.tmpdir = tempfile.TemporaryDirectory()
-        self.cwd = Path(self.tmpdir.name)
-
-    def tearDown(self):
-        self.tmpdir.cleanup()
-
-    def test_writes_session_file(self):
-        client = EchoClient()
-        client.run_turn("hello", {}, self.cwd)
-        session_file = self.cwd / ".cae-echo-session"
-        self.assertTrue(session_file.exists())
-        self.assertEqual(len(session_file.read_text()), 36)  # UUID length
-
-    def test_writes_output_txt(self):
-        client = EchoClient()
-        client.run_turn("hello", {}, self.cwd)
-        output_file = self.cwd / "output.txt"
-        self.assertTrue(output_file.exists())
-        self.assertEqual(output_file.read_text(), "hello")
-
-    def test_output_excludes_system_prompt_append(self):
-        client = EchoClient()
-        client.run_turn("hello", {}, self.cwd, system_prompt_append="EXTRA")
-        output_file = self.cwd / "output.txt"
-        self.assertEqual(output_file.read_text(), "hello")
-
-    @patch("cae.agent_client.random.random", return_value=0.5)
-    def test_returns_no_marker_when_random_high(self, _mock):
-        client = EchoClient()
-        result = client.run_turn("hello", {}, self.cwd)
-        self.assertNotIn(PHASE_COMPLETE_MARKER, result.output)
-
-    @patch("cae.agent_client.random.random", return_value=0.1)
-    def test_returns_marker_when_random_low(self, _mock):
-        client = EchoClient()
-        result = client.run_turn("hello", {}, self.cwd)
-        self.assertIn(PHASE_COMPLETE_MARKER, result.output)
-
-    @patch("cae.agent_client.random.random", side_effect=[0.5, 0.1])
-    def test_first_prompt_only_writes_once(self, _mock):
-        client = EchoClient()
-        client.run_turn("hello", {}, self.cwd)
-        client.run_turn("continue", {}, self.cwd)
-        output_file = self.cwd / "output.txt"
-        self.assertEqual(output_file.read_text(), "hello")
 
 
 class FakeClient(AgentClient):
@@ -115,101 +63,124 @@ class TestWorkerLoop(unittest.TestCase):
         self.impl_dir.mkdir()
         self.volume = Volume(self.run_dir)
         self.volume.ensure_dirs()
-        self.volume.write_task(
-            TaskState(
-                benchmark_id="test",
-                phase_id="phase-1",
-                attempt=1,
-                prompt="Do something",
-                max_attempts=3,
-                points=10,
-            )
-        )
 
     def tearDown(self):
         self.tmpdir.cleanup()
 
-    def _write_feedback_after_ready(self, feedback, delay=0.5):
-        """Return a thread that waits for ready, sleeps *delay*, then writes feedback."""
+    def _run_worker_timeout(self, client, timeout: float = 2.0):
+        """Run the worker in a thread and return its result, or None if it times out."""
+        result = [None]
+
+        def target():
+            result[0] = run_worker(self.volume, self.impl_dir, lambda: client)
+
+        t = threading.Thread(target=target)
+        t.start()
+        t.join(timeout=timeout)
+        if t.is_alive():
+            return None  # Worker is still alive (expected for successful loops)
+        return result[0]
+
+    def _write_prompt_after_ready(self, prompts, delay=0.05):
+        """Return a thread that writes each prompt after ready is cleared."""
 
         def _writer():
-            for _ in range(int(delay * 2 / 0.01) + 100):  # generous timeout
-                if self.volume.is_ready():
-                    time.sleep(delay)
-                    self.volume.write_feedback(feedback)
-                    return
-                time.sleep(0.01)
+            for prompt in prompts:
+                # Wait for ready
+                while not self.volume.is_ready():
+                    time.sleep(0.01)
+                time.sleep(delay)
+                self.volume.clear_ready()
+                time.sleep(delay)
+                self.volume.write_prompt(prompt)
 
-        t = threading.Thread(target=_writer)
+        t = threading.Thread(target=_writer, daemon=True)
         t.start()
         return t
 
     @patch("cae.worker.time")
     def test_sets_ready_when_marker_present(self, mock_time):
         _apply_fast_sleep(mock_time)
+        self.volume.write_prompt("Do something")
         client = FakeClient(["work done\n<CAE_PHASE_COMPLETE/>"])
-        fb = Feedback(
-            phase_id="phase-1",
-            attempt=1,
-            passed=True,
-            message="Good",
-            phase_complete=True,
-            next_phase_id=None,
-        )
-        t = self._write_feedback_after_ready(fb)
-        result = run_worker(self.volume, self.impl_dir, lambda: client)
-        t.join(timeout=5)
-        self.assertEqual(result, 0)
+
+        ready_seen = [False]
+
+        def writer():
+            while not self.volume.is_ready():
+                time.sleep(0.01)
+            ready_seen[0] = True
+            self.volume.clear_ready()
+
+        t = threading.Thread(target=writer)
+        t.start()
+
+        result = self._run_worker_timeout(client)
+        t.join(timeout=2)
+        self.assertIsNone(result)  # Worker still waiting for next prompt
+        self.assertEqual(client.prompts, ["Do something"])
+        self.assertTrue(ready_seen[0])  # Worker did set ready
 
     @patch("cae.worker.time")
     def test_continues_without_marker(self, mock_time):
         _apply_fast_sleep(mock_time)
+        self.volume.write_prompt("Do something")
         client = FakeClient([
             "should I continue?",
             "done\n<CAE_PHASE_COMPLETE/>",
         ])
-        fb = Feedback(
-            phase_id="phase-1",
-            attempt=1,
-            passed=True,
-            message="Good",
-            phase_complete=True,
-            next_phase_id=None,
-        )
-        t = self._write_feedback_after_ready(fb)
-        result = run_worker(self.volume, self.impl_dir, lambda: client)
-        t.join(timeout=5)
-        self.assertEqual(result, 0)
+
+        ready_seen = [False]
+
+        def writer():
+            while not self.volume.is_ready():
+                time.sleep(0.01)
+            ready_seen[0] = True
+            self.volume.clear_ready()
+
+        t = threading.Thread(target=writer)
+        t.start()
+
+        result = self._run_worker_timeout(client)
+        t.join(timeout=2)
+        self.assertIsNone(result)
         self.assertEqual(len(client.prompts), 2)
         self.assertIn("Continue working", client.prompts[1])
+        self.assertTrue(ready_seen[0])
 
     @patch("cae.worker.time")
     def test_retries_on_crash(self, mock_time):
         _apply_fast_sleep(mock_time)
+        self.volume.write_prompt("Do something")
         client = FakeClient([
             TurnResult(success=False, details="crash", output=""),
             "done\n<CAE_PHASE_COMPLETE/>",
         ])
-        fb = Feedback(
-            phase_id="phase-1",
-            attempt=1,
-            passed=True,
-            message="Good",
-            phase_complete=True,
-            next_phase_id=None,
-        )
-        t = self._write_feedback_after_ready(fb)
-        result = run_worker(self.volume, self.impl_dir, lambda: client)
-        t.join(timeout=5)
-        self.assertEqual(result, 0)
+
+        ready_seen = [False]
+
+        def writer():
+            while not self.volume.is_ready():
+                time.sleep(0.01)
+            ready_seen[0] = True
+            self.volume.clear_ready()
+
+        t = threading.Thread(target=writer)
+        t.start()
+
+        result = self._run_worker_timeout(client)
+        t.join(timeout=2)
+        self.assertIsNone(result)
         self.assertEqual(len(client.prompts), 2)
         self.assertIn("Continue working", client.prompts[1])
+        self.assertTrue(ready_seen[0])
 
     def test_exits_after_max_crash_retries(self):
         responses = [
             TurnResult(success=False, details="crash", output="")
         ] * (MAX_CRASH_RETRIES + 1)
         client = FakeClient(responses)
+        self.volume.write_prompt("Do something")
         result = run_worker(self.volume, self.impl_dir, lambda: client)
         self.assertEqual(result, 1)
         self.assertEqual(len(client.prompts), MAX_CRASH_RETRIES)
@@ -217,25 +188,30 @@ class TestWorkerLoop(unittest.TestCase):
     @patch("cae.worker.time")
     def test_resets_crash_counter_after_success(self, mock_time):
         _apply_fast_sleep(mock_time)
+        self.volume.write_prompt("Do something")
         client = FakeClient([
             TurnResult(success=False, details="crash", output=""),
             "not done yet",
             TurnResult(success=False, details="crash", output=""),
             "done\n<CAE_PHASE_COMPLETE/>",
         ])
-        fb = Feedback(
-            phase_id="phase-1",
-            attempt=1,
-            passed=True,
-            message="Good",
-            phase_complete=True,
-            next_phase_id=None,
-        )
-        t = self._write_feedback_after_ready(fb)
-        result = run_worker(self.volume, self.impl_dir, lambda: client)
-        t.join(timeout=5)
-        self.assertEqual(result, 0)
+
+        ready_seen = [False]
+
+        def writer():
+            while not self.volume.is_ready():
+                time.sleep(0.01)
+            ready_seen[0] = True
+            self.volume.clear_ready()
+
+        t = threading.Thread(target=writer)
+        t.start()
+
+        result = self._run_worker_timeout(client)
+        t.join(timeout=2)
+        self.assertIsNone(result)
         self.assertEqual(len(client.prompts), 4)
+        self.assertTrue(ready_seen[0])
 
     def test_exits_on_startup_failure(self):
         script = self.impl_dir / ".cae-startup.sh"
@@ -244,6 +220,26 @@ class TestWorkerLoop(unittest.TestCase):
         result = run_worker(self.volume, self.impl_dir, lambda: client)
         self.assertEqual(result, 1)
         self.assertEqual(len(client.prompts), 0)
+
+    @patch("cae.worker.time")
+    def test_processes_two_prompts(self, mock_time):
+        """Worker handles two prompt cycles in sequence."""
+        _apply_fast_sleep(mock_time)
+        self.volume.write_prompt("First prompt")
+        client = FakeClient([
+            "done\n<CAE_PHASE_COMPLETE/>",
+            "done\n<CAE_PHASE_COMPLETE/>",
+        ])
+
+        t = self._write_prompt_after_ready(["Second prompt"])
+
+        result = self._run_worker_timeout(client, timeout=3)
+        t.join(timeout=2)
+        self.assertIsNone(result)
+        self.assertEqual(len(client.prompts), 2)
+        self.assertIn("First prompt", client.prompts[0])
+        self.assertIn("Second prompt", client.prompts[1])
+
 
 class TestWorkerStartup(unittest.TestCase):
     def test_runs_startup_script(self):
@@ -270,6 +266,66 @@ class TestWorkerStartup(unittest.TestCase):
             rc = _run_startup_script(impl_dir)
             self.assertEqual(rc, 42)
 
+
+class TestClientDiscovery(unittest.TestCase):
+    """Tests for agent client discovery from template directories."""
+
+    def test_discovers_echo_client_from_template(self):
+        """_discover_clients should find the echo client from templates/echo/."""
+        from cae.agent_client import _CLIENTS
+        # Clear any previously registered clients
+        _CLIENTS.clear()
+
+        agent_dir = Path(__file__).parent.parent / "templates" / "echo" / "agent"
+        clients = _discover_clients(agent_dir)
+
+        self.assertIn("echo", clients)
+        self.assertEqual(len(clients), 1)
+
+    def test_no_clients_when_agent_dir_empty(self):
+        """_discover_clients should return empty dict when no adapters exist."""
+        from cae.agent_client import _CLIENTS
+        _CLIENTS.clear()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            agent_dir = Path(tmpdir)
+            clients = _discover_clients(agent_dir)
+            self.assertEqual(len(clients), 0)
+
+    def test_discovers_probe_client_from_fixture(self):
+        """_discover_clients should find the probe client from test fixtures."""
+        from cae.agent_client import _CLIENTS
+        _CLIENTS.clear()
+
+        agent_dir = Path(__file__).parent / "fixtures" / "probe-template" / "agent"
+        clients = _discover_clients(agent_dir)
+
+        self.assertIn("probe", clients)
+        self.assertEqual(len(clients), 1)
+    def test_name_collision_avoided(self):
+        """Adapter files named like stdlib modules should not shadow them."""
+        from cae.agent_client import _CLIENTS, register_client, AgentClient
+        _CLIENTS.clear()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            agent_dir = Path(tmpdir)
+            # Create a file named 'test.py' which would shadow stdlib 'test'
+            # if discovered via import_module instead of spec_from_file_location.
+            adapter = agent_dir / "test.py"
+            adapter.write_text(
+                'from cae.agent_client import AgentClient, register_client\n'
+                '@register_client("collision-test")\n'
+                'class CollisionClient(AgentClient):\n'
+                '    def run_turn(self, prompt, env, cwd, system_prompt_append=""):\n'
+                '        return None\n'
+            )
+            clients = _discover_clients(agent_dir)
+
+            self.assertIn("collision-test", clients)
+            self.assertEqual(len(clients), 1)
+            # Ensure stdlib 'test' module is not replaced by our adapter
+            import test as stdlib_test  # noqa: F401
+            self.assertTrue(hasattr(stdlib_test, '__file__'))
 
 if __name__ == "__main__":
     unittest.main()

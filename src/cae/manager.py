@@ -20,26 +20,10 @@ from datetime import datetime
 from pathlib import Path
 
 from .benchmark import Benchmark, Phase
-from .protocol import Volume, TaskState, Feedback, Score, TestResult
+from .protocol import Volume, Score, TestResult
 from .runtime import Runtime
 from .scoring import ScoringRules, compute_phase_score
 from .template import apply_template
-
-
-def setup_volume(volume: Volume, benchmark: Benchmark, phase: Phase, attempt: int = 1) -> None:
-    """Write the current task state to the volume."""
-    with open(phase.prompt_file) as f:
-        prompt = f.read()
-
-    task = TaskState(
-        benchmark_id=benchmark.id,
-        phase_id=phase.id,
-        attempt=attempt,
-        prompt=prompt,
-        max_attempts=phase.max_attempts,
-        points=phase.points,
-    )
-    volume.write_task(task)
 
 
 def _init_score(benchmark: Benchmark) -> Score:
@@ -82,11 +66,11 @@ def _wait_for_ready(
     """Block until the worker signals ready, dies, or the deadline hits.
 
     Returns ``True`` when the ready marker is present, ``False`` when the
-    worker exited early or we hit the global timeout.
+    worker exited early or the deadline was reached.
     """
     while not volume.is_ready():
         if time.time() > deadline:
-            print("TIMEOUT: exceeded max total time")
+            print("TIMEOUT: deadline exceeded")
             return False
         if worker_proc and worker_proc.poll() is not None:
             print("Worker exited early")
@@ -99,11 +83,10 @@ def _run_tester(
     volume: Volume,
     benchmark: Benchmark,
     phase: Phase,
+    attempt: int,
     runtime: Runtime,
 ) -> TestResult:
     """Spawn the tester and return the parsed result."""
-    task = volume.read_task()
-    attempt = task.attempt if task else 1
     print(f"Evaluating {phase.id} attempt {attempt}...")
 
     runtime.spawn_tester(volume, benchmark, phase.id)
@@ -153,94 +136,14 @@ def _record_attempt(
     score.phases[phase.id] = phase_score
 
 
-def _send_feedback(
-    volume: Volume,
-    *,
-    phase_id: str,
-    attempt: int,
-    passed: bool,
-    message: str,
-    phase_complete: bool,
-    next_phase_id: str | None,
-) -> None:
-    """Write feedback and score to the volume."""
-    feedback = Feedback(
-        phase_id=phase_id,
-        attempt=attempt,
-        passed=passed,
-        message=message,
-        phase_complete=phase_complete,
-        next_phase_id=next_phase_id,
-    )
-    volume.write_feedback(feedback)
-
-
-def _advance_phase(
-    volume: Volume,
-    benchmark: Benchmark,
-    current: Phase,
-    attempt: int,
-    next_phase: Phase,
-) -> None:
-    """Transition to the next phase and reset attempt counter."""
-    _send_feedback(
-        volume,
-        phase_id=current.id,
-        attempt=attempt,
-        passed=True,
-        message="All tests passed. Moving to next phase.",
-        phase_complete=True,
-        next_phase_id=next_phase.id,
-    )
-    volume.clear_ready()
-    setup_volume(volume, benchmark, next_phase, attempt=1)
-
-
-def _retry_phase(
-    volume: Volume,
-    phase: Phase,
-    attempt: int,
-    details: str,
-) -> None:
-    """Signal retry for the current phase."""
-    _send_feedback(
-        volume,
-        phase_id=phase.id,
-        attempt=attempt,
-        passed=False,
-        message=details,
-        phase_complete=False,
-        next_phase_id=None,
-    )
-    volume.clear_ready()
-    task = volume.read_task()
-    if task:
-        volume.write_task(TaskState(
-            benchmark_id=task.benchmark_id,
-            phase_id=task.phase_id,
-            attempt=attempt + 1,
-            prompt=task.prompt,
-            max_attempts=task.max_attempts,
-            points=task.points,
-        ))
-
-
-def _end_group(
-    volume: Volume,
-    phase: Phase,
-    attempt: int,
-    passed: bool,
-    details: str,
-) -> None:
-    """Write final feedback indicating the group is over."""
-    _send_feedback(
-        volume,
-        phase_id=phase.id,
-        attempt=attempt,
-        passed=passed,
-        message=details,
-        phase_complete=True,
-        next_phase_id=None,
+def _build_retry_prompt(original_prompt: str, attempt: int, max_attempts: int, details: str) -> str:
+    """Construct the prompt for a retry attempt."""
+    return (
+        f"{original_prompt}\n\n"
+        f"---\n\n"
+        f"Tests failed (attempt {attempt}/{max_attempts}):\n"
+        f"{details}\n\n"
+        "Please fix the issues and try again."
     )
 
 
@@ -248,6 +151,7 @@ def run_single_attempt(
     volume: Volume,
     benchmark: Benchmark,
     phase: Phase,
+    attempt: int,
     worker_proc: subprocess.Popen,
     deadline: float,
     runtime: Runtime,
@@ -260,7 +164,7 @@ def run_single_attempt(
     """
     if not _wait_for_ready(volume, worker_proc, deadline):
         return None
-    return _run_tester(volume, benchmark, phase, runtime)
+    return _run_tester(volume, benchmark, phase, attempt, runtime)
 
 
 def run_single_step(
@@ -276,12 +180,17 @@ def run_single_step(
     """Evaluate one phase (all attempts).
 
     Runs the retry loop: up to ``phase.max_attempts`` attempts, writing
-    retry feedback between failures.  Returns ``(passed, final_attempt,
+    retry prompts between failures.  Returns ``(passed, final_attempt,
     details)`` or ``None`` if the worker died or the deadline was reached.
     """
+    original_prompt = phase.read_prompt()
+
+    phase_deadline = time.time() + phase.max_time if phase.max_time else float('inf')
+
     for attempt in range(1, phase.max_attempts + 1):
+        effective_deadline = min(deadline, phase_deadline)
         result = run_single_attempt(
-            volume, benchmark, phase, worker_proc, deadline, runtime
+            volume, benchmark, phase, attempt, worker_proc, effective_deadline, runtime
         )
         if result is None:
             return None  # worker died or global timeout
@@ -293,9 +202,14 @@ def run_single_step(
             return True, attempt, result.details
 
         if attempt < phase.max_attempts:
-            _retry_phase(volume, phase, attempt, result.details)
+            retry_prompt = _build_retry_prompt(
+                original_prompt, attempt, phase.max_attempts, result.details
+            )
+            volume.clear_ready()
+            volume.write_prompt(retry_prompt)
 
     # Exhausted all attempts
+    assert result is not None
     return False, phase.max_attempts, result.details
 
 
@@ -311,13 +225,12 @@ def run_group(
 
     The group is a sequence of phases.  Each phase gets up to
     ``max_attempts`` tries.  If all attempts of a phase fail, the group
-    ends immediately — the agent does **not** receive the next phase's
-    prompt.
+    ends immediately.
 
     Directory layout under *bench_dir*::
 
         bench_dir/
-          .cae/     protocol files (task.json, feedback.json, score.json, ready)
+          .cae/     protocol files (prompt.md, score.json, ready)
           impl/     agent workspace (read-write for worker, read-only for tester)
           test/     tester output (read-write for tester only)
 
@@ -349,10 +262,9 @@ def run_group(
     worker_proc = None
 
     try:
+        # Write the first prompt before spawning the worker to avoid a race.
+        volume.write_prompt(benchmark.phases[0].read_prompt())
         worker_proc = runtime.spawn_worker(volume, agent_cmd)
-
-        # Prime the first phase before entering the phase loop.
-        setup_volume(volume, benchmark, benchmark.phases[0], attempt=1)
 
         for phase in benchmark.phases:
             outcome = run_single_step(
@@ -366,19 +278,14 @@ def run_group(
             if passed:
                 next_phase = benchmark.next_phase(phase.id)
                 if next_phase:
-                    _advance_phase(volume, benchmark, phase, attempt, next_phase)
+                    volume.clear_ready()
+                    volume.write_prompt(next_phase.read_prompt())
                 else:
-                    _end_group(
-                        volume, phase, attempt,
-                        passed=True,
-                        details="All tests passed. Group complete.",
-                    )
+                    volume.clear_ready()
+                    print("All tests passed. Group complete.")
             else:
-                _end_group(
-                    volume, phase, attempt,
-                    passed=False,
-                    details=f"Failed after {attempt} attempts.\n{details}",
-                )
+                volume.clear_ready()
+                print(f"Failed after {attempt} attempts.\n{details}")
                 return score  # group ends on exhausted failure
 
         return score

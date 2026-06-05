@@ -11,9 +11,11 @@
       "maxAttempts": 3
     }
   ],
-  "testsPath": "tests",
   "scoring": {
     "penaltyPerAttempt": 2,
     "penaltyFloor": 4
+  },
+  "tests": {
+    "script": "tests/run.sh"
   }
 }

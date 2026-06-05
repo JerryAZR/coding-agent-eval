@@ -134,6 +134,25 @@ class TestBenchmarkLoad(unittest.TestCase):
         })
         bm = Benchmark.load(path)
         self.assertIsNone(bm.next_phase("p99"))
+    def test_phase_max_time(self):
+        path = self.write_task({
+            "id": "timed",
+            "phases": [
+                {"id": "p1", "promptFile": "prompts/1.md", "maxTime": 300},
+                {"id": "p2", "promptFile": "prompts/2.md"},
+            ],
+        })
+        bm = Benchmark.load(path)
+        self.assertEqual(bm.phases[0].max_time, 300.0)
+        self.assertIsNone(bm.phases[1].max_time)
+
+    def test_phase_max_time_none_when_missing(self):
+        path = self.write_task({
+            "id": "timed",
+            "phases": [{"id": "p1", "promptFile": "prompts/1.md"}],
+        })
+        bm = Benchmark.load(path)
+        self.assertIsNone(bm.phases[0].max_time)
 
 
 if __name__ == "__main__":

@@ -18,5 +18,7 @@
       "maxAttempts": 2
     }
   ],
-  "testsPath": "tests"
+  "tests": {
+    "script": "tests/run.sh"
+  }
 }

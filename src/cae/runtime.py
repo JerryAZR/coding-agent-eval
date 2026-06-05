@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 from abc import ABC, abstractmethod
+from typing import Any
 from pathlib import Path
 
 from .benchmark import Benchmark
@@ -280,7 +281,7 @@ class ContainerRuntime(Runtime):
 # Factory
 # ---------------------------------------------------------------------------
 
-def runtime_for_mode(mode: str, **kwargs) -> Runtime:
+def runtime_for_mode(mode: str, **kwargs: Any) -> Runtime:
     """Return a ``Runtime`` instance for the given mode string.
 
     *mode="local"* returns ``LocalRuntime()``.

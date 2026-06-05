@@ -7,45 +7,12 @@ from pathlib import Path
 from typing import Any
 
 VOLUME_DIR = ".cae"
-TASK_FILE = "task.json"
-FEEDBACK_FILE = "feedback.json"
+PROMPT_FILE = "prompt.md"
 SCORE_FILE = "score.json"
 READY_MARKER = "ready"
 RESULTS_DIR = "results"
 LATEST_RESULT = "latest.json"
 
-
-@dataclass
-class TaskState:
-    """What the manager writes for the current phase."""
-
-    benchmark_id: str
-    phase_id: str
-    attempt: int
-    prompt: str
-    max_attempts: int
-    points: int
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "benchmarkId": self.benchmark_id,
-            "phaseId": self.phase_id,
-            "attempt": self.attempt,
-            "prompt": self.prompt,
-            "maxAttempts": self.max_attempts,
-            "points": self.points,
-        }
-
-    @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> TaskState:
-        return cls(
-            benchmark_id=d["benchmarkId"],
-            phase_id=d["phaseId"],
-            attempt=d["attempt"],
-            prompt=d["prompt"],
-            max_attempts=d["maxAttempts"],
-            points=d["points"],
-        )
 
 
 @dataclass
@@ -72,39 +39,6 @@ class TestResult:
             passed=d["passed"],
             details=d.get("details", ""),
             exit_code=d.get("exitCode", 1),
-        )
-
-
-@dataclass
-class Feedback:
-    """What the manager writes after evaluation."""
-
-    phase_id: str
-    attempt: int
-    passed: bool
-    message: str
-    phase_complete: bool
-    next_phase_id: str | None
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "phaseId": self.phase_id,
-            "attempt": self.attempt,
-            "passed": self.passed,
-            "message": self.message,
-            "phaseComplete": self.phase_complete,
-            "nextPhaseId": self.next_phase_id,
-        }
-
-    @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> Feedback:
-        return cls(
-            phase_id=d["phaseId"],
-            attempt=d["attempt"],
-            passed=d["passed"],
-            message=d.get("message", ""),
-            phase_complete=d.get("phaseComplete", False),
-            next_phase_id=d.get("nextPhaseId"),
         )
 
 
@@ -141,7 +75,7 @@ class Volume:
     """
 
     def __init__(self, root: Path | str, results_dir: Path | str | None = None):
-        self.root = Path(root)
+        self.root: Path = Path(root)
         self.cae = self.root / VOLUME_DIR
         self.results = Path(results_dir) if results_dir else self.cae / RESULTS_DIR
 
@@ -149,36 +83,34 @@ class Volume:
         self.cae.mkdir(parents=True, exist_ok=True)
         self.results.mkdir(parents=True, exist_ok=True)
 
-    def _atomic_write(self, path: Path, data: dict) -> None:
+    def _atomic_write_json(self, path: Path, data: dict) -> None:
         """Write JSON atomically via a temp file + rename."""
         tmp = path.with_suffix(".tmp")
         with open(tmp, "w") as f:
             json.dump(data, f, indent=2)
         tmp.rename(path)
 
-    def write_task(self, task: TaskState) -> None:
-        self._atomic_write(self.cae / TASK_FILE, task.to_dict())
+    def write_prompt(self, prompt: str) -> None:
+        """Write the prompt text atomically."""
+        path = self.cae / PROMPT_FILE
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(prompt, encoding="utf-8")
+        tmp.rename(path)
 
-    def read_task(self) -> TaskState | None:
-        path = self.cae / TASK_FILE
+    def read_prompt(self) -> str | None:
+        """Read the prompt text if present."""
+        path = self.cae / PROMPT_FILE
         if not path.exists():
             return None
-        with open(path) as f:
-            return TaskState.from_dict(json.load(f))
+        return path.read_text(encoding="utf-8")
 
-    def write_feedback(self, feedback: Feedback) -> None:
-        self._atomic_write(self.cae / FEEDBACK_FILE, feedback.to_dict())
-
-    def read_feedback(self) -> Feedback | None:
-        path = self.cae / FEEDBACK_FILE
-        if not path.exists():
-            return None
-        with open(path) as f:
-            return Feedback.from_dict(json.load(f))
-
+    def delete_prompt(self) -> None:
+        """Remove the prompt file."""
+        path = self.cae / PROMPT_FILE
+        if path.exists():
+            path.unlink()
     def write_score(self, score: Score) -> None:
-        self._atomic_write(self.cae / SCORE_FILE, score.to_dict())
-
+        self._atomic_write_json(self.cae / SCORE_FILE, score.to_dict())
     def read_score(self) -> Score | None:
         path = self.cae / SCORE_FILE
         if not path.exists():
@@ -187,8 +119,7 @@ class Volume:
             return Score.from_dict(json.load(f))
 
     def write_result(self, result: TestResult) -> None:
-        self._atomic_write(self.results / LATEST_RESULT, result.to_dict())
-
+        self._atomic_write_json(self.results / LATEST_RESULT, result.to_dict())
     def read_result(self) -> TestResult | None:
         path = self.results / LATEST_RESULT
         if not path.exists():

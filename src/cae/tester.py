@@ -7,6 +7,7 @@ test script for the current phase and writes results.
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -18,7 +19,7 @@ from .protocol import Volume, TestResult
 def run_tests(impl_dir: Path, benchmark: Benchmark, phase_id: str) -> TestResult:
     """Run the test script for the given phase."""
     env = {
-        **dict(subprocess.os.environ),
+        **dict(os.environ),
         "CAE_ARTIFACT_ROOT": str(impl_dir),
         "CAE_PHASE": phase_id,
     }
@@ -75,19 +76,6 @@ def main(argv: list[str] | None = None) -> int:
 
     # Run tests for current phase
     test_result = run_tests(impl_dir, benchmark, args.phase)
-    volume.write_result(test_result)
-
-    # Also run regression tests for all prior phases
-    for phase in benchmark.phases:
-        if phase.id == args.phase:
-            break
-        reg_result = run_tests(impl_dir, benchmark, phase.id)
-        if not reg_result.passed:
-            test_result.passed = False
-            test_result.details += f"\n--- REGRESSION {phase.id} ---\n{reg_result.details}"
-            volume.write_result(test_result)
-            return 1
-
     volume.write_result(test_result)
     return 0 if test_result.passed else 1
 
