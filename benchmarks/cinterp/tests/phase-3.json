@@ -12,8 +12,6 @@
     {"name": "pointer_in_control_flow", "file": "phase-3/pointer_in_control_flow.c", "stdout": "5\n20\n", "exit": 0},
     {"name": "pointer_as_return", "file": "phase-3/pointer_as_return.c", "stdout": "20\n", "exit": 0},
     {"name": "array_with_loops", "file": "phase-3/array_with_loops.c", "stdout": "0\n2\n4\n6\n8\n", "exit": 0},
-    {"name": "error_null_deref", "file": "phase-3/error_null_deref.c", "exit": 1, "error": true},
-    {"name": "error_out_of_bounds", "file": "phase-3/error_out_of_bounds.c", "exit": 1, "error": true},
-    {"name": "error_pointer_oob", "file": "phase-3/error_pointer_oob.c", "exit": 1, "error": true}
+    {"name": "error_null_deref", "file": "phase-3/error_null_deref.c", "exit": 1, "error": true}
   ]
 }

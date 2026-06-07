@@ -78,7 +78,6 @@ The same executable: `./cinterp`
 ## Rules
 
 - Arrays are declared with a constant size: `int arr[10];`. The size is known at parse time.
-- Array indexing is bounds-checked. Accessing `arr[i]` where `i` is outside `0` to `size-1` is a runtime error.
 - Pointer arithmetic `*(p + n)` works in units of `int` (so `*(p + 1)` refers to the next integer, not the next byte).
 - `&x` produces a pointer to variable `x`. `&arr[i]` produces a pointer to the i-th element.
 - All prior phases must continue to work.
@@ -86,7 +85,6 @@ The same executable: `./cinterp`
 ## Error cases
 
 Your interpreter must detect and report as runtime errors:
-- Array index out of bounds
 - Dereferencing a null pointer
 - Passing the wrong number of arguments to a function
 
