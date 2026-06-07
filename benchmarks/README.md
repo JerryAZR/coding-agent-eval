@@ -21,23 +21,25 @@ A benchmark is a self-contained directory consumed by the framework via `--suite
 
 ```json
 {
-  "id": "nlm-eval",
-  "name": "Natural Language Math Evaluator",
-  "description": "Build a CLI tool that evaluates arithmetic expressions.",
+  "id": "cinterp",
+  "name": "C Interpreter",
+  "description": "Build an interpreter for a restricted subset of C.",
   "phases": [
     {
       "id": "phase-1",
-      "name": "Simple Binary Operations",
+      "name": "Expressions and Control Flow",
       "promptFile": "prompts/phase-1.md",
       "points": 10,
-      "maxAttempts": 3
+      "maxAttempts": 3,
+      "maxTime": 900
     },
     {
       "id": "phase-2",
-      "name": "Chained Operations",
+      "name": "User-Defined Functions",
       "promptFile": "prompts/phase-2.md",
       "points": 20,
-      "maxAttempts": 3
+      "maxAttempts": 3,
+      "maxTime": 900
     }
   ],
   "tests": {
@@ -69,8 +71,7 @@ A suite references one or more benchmarks:
 {
   "name": "my-suite",
   "benchmarks": [
-    "benchmarks/nlm-eval/task.json",
-    "benchmarks/log-stats/task.json"
+    "cinterp/task.json"
   ]
 }
 ```
@@ -83,11 +84,11 @@ Paths are resolved relative to the suite config file.
 PYTHONPATH=src python -m cae run \
   --suite benchmarks/my-suite/suite.json \
   --volume ./runs \
-  --agent-cmd "python3 /path/to/agent.py"
+  --agent-template templates/pi
 ```
 ## Dummy Benchmarks
 
-Quick smoke tests for verifying the end-to-end loop:
+Quick smoke tests for verifying the end-to-end loop live in `dummies/`:
 
 | Benchmark | Purpose |
 |-----------|---------|
@@ -98,7 +99,7 @@ Quick smoke tests for verifying the end-to-end loop:
 
 ```bash
 PYTHONPATH=src python -m cae run \
-  --suite benchmarks/dummy-suite/suite.json \
+  --suite benchmarks/dummies/dummy-suite/suite.json \
   --volume /tmp/dummy-runs \
   --agent-template templates/pi
 ```

@@ -154,7 +154,7 @@ For isolated evaluation, run worker and tester in rootless Podman containers:
 
 ```bash
 PYTHONPATH=src python -m cae run \
-  --suite benchmarks/nlm-eval/suite.json \
+  --suite benchmarks/dummies/dummy-smoke/suite.json \
   --agent-template ./templates/my-agent/
 ```
 

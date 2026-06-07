@@ -1,8 +1,0 @@
-{
-  "name": "test-suite",
-  "benchmarks": [
-    "../test-pass/task.json",
-    "../test-retry/task.json",
-    "../test-fail/task.json"
-  ]
-}

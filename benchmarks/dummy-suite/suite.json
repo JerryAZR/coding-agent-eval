@@ -1,8 +1,0 @@
-{
-  "name": "dummy-suite",
-  "benchmarks": [
-    "../dummy-smoke/task.json",
-    "../dummy-retry/task.json",
-    "../dummy-multi/task.json"
-  ]
-}

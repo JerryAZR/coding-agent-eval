@@ -1,6 +1,0 @@
-{
-  "name": "nlm-eval",
-  "benchmarks": [
-    "task.json"
-  ]
-}

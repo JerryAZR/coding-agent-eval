@@ -1,0 +1,6 @@
+{
+  "name": "cae-suite",
+  "benchmarks": [
+    "../cinterp/task.json"
+  ]
+}

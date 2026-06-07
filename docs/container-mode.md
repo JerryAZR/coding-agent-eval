@@ -10,7 +10,7 @@ Container mode runs the worker and tester in rootless Podman containers for full
 
 # 2. Run with container mode
 PYTHONPATH=src python -m cae run \
-  --suite benchmarks/nlm-eval/suite.json
+  --suite benchmarks/dummies/dummy-smoke/suite.json
 ```
 ## Architecture
 
@@ -103,7 +103,7 @@ If your agent is a single binary or directory on the host:
 ```bash
 PYTHONPATH=src python -m cae run \
   --agent-mount /usr/local/bin/pi:/usr/local/bin/pi \
-  --suite benchmarks/nlm-eval/suite.json
+  --suite benchmarks/dummies/dummy-smoke/suite.json
 ```
 Repeat `--agent-mount` for multiple directories.
 

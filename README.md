@@ -19,7 +19,7 @@ for image details.
 
 ```bash
 PYTHONPATH=src python -m cae run \
-  --suite benchmarks/dummy-smoke/suite.json \
+  --suite benchmarks/dummies/dummy-smoke/suite.json \
   --volume /tmp/cae-runs
 ```
 
@@ -29,7 +29,7 @@ Check `/tmp/cae-runs/` for the run directory and `suite-summary.json`.
 
 ```bash
 PYTHONPATH=src python -m cae run \
-  --suite benchmarks/nlm-eval/suite.json \
+  --suite benchmarks/dummies/dummy-smoke/suite.json \
   --volume /tmp/cae-runs \
   --agent-template templates/pi \
   --agent-cmd "pi"
