@@ -180,7 +180,6 @@ def main(argv: list[str] | None = None) -> int:
         "--volume", required=True, help="Run directory (parent of .cae/ and impl/)"
     )
     parser.add_argument("--agent-cmd", help="Custom agent command (space-separated)")
-    parser.add_argument("--agent-cmd", help="Custom agent command (space-separated)")
     args = parser.parse_args(argv)
 
     run_dir = Path(args.volume)

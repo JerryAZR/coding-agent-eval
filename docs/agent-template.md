@@ -196,7 +196,7 @@ The trade-off is the copy cost per benchmark. For small venvs this is negligible
 
 Agent adapters are user code. Requiring a Docker rebuild for every adapter change adds friction. By placing the adapter in `template/agent/` and adding it to PYTHONPATH, agent vendors can iterate on adapter logic with the same base image.
 
-The CAE framework itself (`cae.worker`, `cae.agent_client` base classes, `cae.protocol`) remains either bind-mounted (development) or baked into a standalone image (production). Only the *agent-specific subclass* is dynamic.
+The CAE framework itself (`cae.worker`, `cae.agent_client` base classes, `cae.protocol`) is baked into every image at `/cae/src`. For development, bind-mounting `/cae/src` from the host hides the baked-in copy for faster iteration without rebuilding images. Only the *agent-specific subclass* is dynamic.
 
 ## Future Extensions
 

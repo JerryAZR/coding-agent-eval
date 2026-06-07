@@ -265,7 +265,7 @@ class ContainerRuntime(Runtime):
         if agent_cmd:
             cmd += ["--agent-cmd", " ".join(agent_cmd)]
 
-        return _spawn_worker(cmd, {}, volume)
+        return _spawn_worker(cmd, dict(os.environ), volume)
     def spawn_tester(self, volume: Volume, benchmark: Benchmark, phase_id: str) -> subprocess.CompletedProcess:
         run_dir = volume.root.absolute()
         benchmark_dir = benchmark.base_dir.resolve()

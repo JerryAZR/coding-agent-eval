@@ -33,6 +33,11 @@ RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.tuna.tsinghua.edu.cn/d
 
 WORKDIR /cae
 
+# Bake the CAE framework source into every image so it works without bind-mount.
+# During development, bind-mounting /cae/src hides this copy for faster iteration.
+COPY src/ /cae/src/
+ENV PYTHONPATH=/cae/src
+
 # ---------------------------------------------------------------------------
 # Fat base — common language runtimes so agent tool choice is less biased
 # ---------------------------------------------------------------------------
@@ -73,17 +78,6 @@ LABEL role=tester
 ENTRYPOINT ["python", "-m", "cae.tester"]
 
 # ---------------------------------------------------------------------------
-# Standalone (bake framework in — no bind-mount needed for src/)
-# ---------------------------------------------------------------------------
-FROM cae-worker-base AS cae-worker-standalone
-COPY src/ /cae/src/
-ENV PYTHONPATH=/cae/src
-
-FROM cae-tester-base AS cae-tester-standalone
-COPY src/ /cae/src/
-ENV PYTHONPATH=/cae/src
-
-# ---------------------------------------------------------------------------
 # Layered pi worker (Node.js + pi pre-installed)
 # ---------------------------------------------------------------------------
 # Based on the fat image so the pi agent can solve tasks in Go, Rust, Java,
@@ -95,20 +89,21 @@ RUN npm install -g @earendil-works/pi-coding-agent
 # ---------------------------------------------------------------------------
 # Usage notes
 # ---------------------------------------------------------------------------
-# Development (bind-mount CAE source):
+# Usage notes
+# ---------------------------------------------------------------------------
+# Development (bind-mount CAE source for fast iteration):
 #   podman run --rm --userns=keep-id \
-#     -v /host/run:/run:Z -v /host/src:/cae/src:Z -e PYTHONPATH=/cae/src \
+#     -v /host/run:/run:Z -v /host/src:/cae/src:Z \
 #     cae-worker-base --volume /run --agent-mode echo
 #
-# Production (standalone image):
+# Production (baked-in source, no extra volume needed):
 #   podman run --rm --userns=keep-id -v /host/run:/run:Z \
-#     cae-worker-standalone --volume /run --agent-mode echo
+#     cae-worker-base --volume /run --agent-mode echo
 #
 # Fat worker for language-agnostic benchmarks:
 #   podman run --rm --userns=keep-id \
-#     -v /host/run:/run:Z -v /host/src:/cae/src:Z -e PYTHONPATH=/cae/src \
+#     -v /host/run:/run:Z -v /host/src:/cae/src:Z \
 #     cae-worker-fat --volume /run --agent-mode echo
-#
 # --userns=keep-id  → rootless UID mapping (host user = container root)
 # -d is NOT used     → host process mirrors subprocess.Popen semantics
 # :Z on volumes      → SELinux label relabeling

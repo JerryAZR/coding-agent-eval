@@ -43,10 +43,8 @@ Manager ──spawn_tester()──▶  podman run --net=none cae-tester-base
 
 | Image | Purpose | Size |
 |-------|---------|------|
-| `cae-worker-base` | Runs agent, bind-mounts CAE source | ~460 MB uncompressed |
-| `cae-tester-base` | Runs tests, bind-mounts CAE source | ~460 MB uncompressed |
-| `cae-worker-standalone` | Worker with CAE baked in (extends base) | ~470 MB uncompressed |
-| `cae-tester-standalone` | Tester with CAE baked in (extends base) | ~470 MB uncompressed |
+| `cae-worker-base` | Worker with CAE source baked in | ~460 MB uncompressed |
+| `cae-tester-base` | Tester with CAE source baked in | ~460 MB uncompressed |
 
 `cae-tester-base` is the right choice for most benchmarks: tests invoke the
 agent's already-built artifacts via `tests/run.sh` and usually do not need
@@ -83,7 +81,7 @@ podman build --target cae-worker-pi -t cae-worker-pi .
 
 ## Making Agents Available
 
-The worker container needs your agent binary in PATH. Three options:
+The worker container needs your agent binary in PATH. Two options:
 
 ### Option A: Layer It (Recommended)
 
@@ -109,20 +107,6 @@ PYTHONPATH=src python -m cae run \
 ```
 Repeat `--agent-mount` for multiple directories.
 
-### Option C: Use Standalone Image
-
-Bake the CAE framework source into the image itself so no source bind-mount is
-needed at runtime.  This is useful for distribution or CI pipelines where the
-framework version is pinned.
-
-The standalone images extend the **base** variants, not the fat variants:
-you still pick the worker/tester image separately to control which language
-runtimes are available.
-
-```bash
-./scripts/build-images.sh podman cae-worker-standalone cae-tester-standalone
-podman run -v /host/run:/run:Z cae-worker-standalone --volume /run
-```
 ## CLI Flags
 
 Container mode adds these flags to `cae run`:
@@ -153,9 +137,8 @@ Container mode adds these flags to `cae run`:
 | Tests can't find fixtures | Benchmark mount wrong | Check benchmark directory mounted at `/benchmark` |
 
 ## Design Decisions
-
 1. **No `-d` flag**: The host `podman` process mirrors `subprocess.Popen`. Terminating the host process terminates the container.
-2. **Bind-mount CAE source by default**: Framework is actively changing; bind-mount avoids rebuilds during development.
+2. **CAE source baked into every image**: The framework source is copied into `/cae/src` during build. For development, bind-mounting `/cae/src` from the host hides the baked-in copy for faster iteration without rebuilding images.
 3. **Generic base images**: No agent baked in. Users layer or bind-mount their agent.
 4. **`--userns=keep-id`**: Rootless Podman maps host user to container root. Files created in container match host UID.
 5. **`:Z` on all volumes**: Required for SELinux systems. Relabels volumes for the container's security context.
