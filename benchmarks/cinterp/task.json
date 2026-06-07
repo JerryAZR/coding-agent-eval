@@ -26,7 +26,14 @@
       "points": 30,
       "maxAttempts": 3,
       "maxTime": 1200
-    }
+    },
+    {
+      "id": "phase-4",
+      "name": "Function Pointers",
+      "promptFile": "prompts/phase-4.md",
+      "points": 40,
+      "maxAttempts": 3,
+      "maxTime": 1200
   ],
   "tests": {
     "script": "tests/run.sh"

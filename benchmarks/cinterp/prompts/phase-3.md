@@ -10,68 +10,68 @@ The same executable: `./cinterp`
 
 1. **Arrays**:
    ```c
-   int arr[10];
-   arr[0] = 5;
-   print_int(arr[0]);
+   int nums[5];
+   nums[2] = 7;
+   print_int(nums[2]);
    ```
 
 2. **Pointers**:
    ```c
-   int x;
-   int *p;
-   p = &x;
-   *p = 42;
-   print_int(x);
+   int value;
+   int *ptr;
+   ptr = &value;
+   *ptr = 100;
+   print_int(value);
    ```
 
 3. **Pointer arithmetic**:
    ```c
-   int arr[3];
+   int data[4];
    int *p;
-   p = arr;
-   *(p + 1) = 99;
-   print_int(arr[1]);
+   p = data;
+   *(p + 2) = 42;
+   print_int(data[2]);
    ```
 
 4. **Arrays in function calls** (array-to-pointer decay):
    ```c
-   int sum(int *a, int n) {
+   int count(int *vals, int n) {
        int i;
        int total;
        total = 0;
        i = 0;
        while (i < n) {
-           total = total + a[i];
+           total = total + vals[i];
            i = i + 1;
        }
        return total;
    }
 
    int main() {
-       int arr[3];
-       arr[0] = 1;
-       arr[1] = 2;
-       arr[2] = 3;
-       print_int(sum(arr, 3));
+       int vals[3];
+       vals[0] = 10;
+       vals[1] = 20;
+       vals[2] = 30;
+       print_int(count(vals, 3));
        return 0;
    }
    ```
 
 5. **Pointer-to-pointer**:
    ```c
-   int x;
-   int *p;
-   int **pp;
-   x = 7;
-   p = &x;
-   pp = &p;
-   print_int(**pp);
+   int n;
+   int *q;
+   int **r;
+   n = 99;
+   q = &n;
+   r = &q;
+   print_int(**r);
    ```
 
 6. **Null pointers**:
    ```c
-   int *p;
-   p = 0;
+   int *ptr;
+   ptr = 0;
    ```
    Dereferencing a null pointer is a runtime error.
 
@@ -89,6 +89,7 @@ Your interpreter must detect and report as runtime errors:
 - Passing the wrong number of arguments to a function
 
 Test programs will only dereference pointers obtained from `&`, array names, or `0` (null).
+
 ## Not in this phase
 
 `malloc`, `free`, `char` and strings, function pointers, pointer arithmetic on non-array pointers (e.g., `&x + 1`).

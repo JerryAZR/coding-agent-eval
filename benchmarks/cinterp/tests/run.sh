@@ -14,6 +14,7 @@ case "$PHASE" in
     phase-1) META_FILES=("$SCRIPT_DIR/phase-1.json") ;;
     phase-2) META_FILES=("$SCRIPT_DIR/phase-1.json" "$SCRIPT_DIR/phase-2.json") ;;
     phase-3) META_FILES=("$SCRIPT_DIR/phase-1.json" "$SCRIPT_DIR/phase-2.json" "$SCRIPT_DIR/phase-3.json") ;;
+    phase-4) META_FILES=("$SCRIPT_DIR/phase-1.json" "$SCRIPT_DIR/phase-2.json" "$SCRIPT_DIR/phase-3.json" "$SCRIPT_DIR/phase-4.json") ;;
     *)
         echo "FAIL: unknown phase: $PHASE"
         exit 1

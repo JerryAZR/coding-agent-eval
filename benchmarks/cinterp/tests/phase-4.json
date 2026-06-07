@@ -1,0 +1,10 @@
+{
+  "tests": [
+    {"name": "basic_func_ptr", "file": "phase-4/basic_func_ptr.c", "stdout": "7\n", "exit": 0},
+    {"name": "func_ptr_as_arg", "file": "phase-4/func_ptr_as_arg.c", "stdout": "11\n", "exit": 0},
+    {"name": "func_ptr_in_array", "file": "phase-4/func_ptr_in_array.c", "stdout": "7\n12\n", "exit": 0},
+    {"name": "func_ptr_as_return", "file": "phase-4/func_ptr_as_return.c", "stdout": "3\n2\n", "exit": 0},
+    {"name": "null_func_ptr", "file": "phase-4/null_func_ptr.c", "stdout": "1\n", "exit": 0},
+    {"name": "error_null_call", "file": "phase-4/error_null_call.c", "exit": 1, "error": true}
+  ]
+}
