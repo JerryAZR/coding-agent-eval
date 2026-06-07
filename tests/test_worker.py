@@ -74,7 +74,7 @@ class TestWorkerLoop(unittest.TestCase):
         def target():
             result[0] = run_worker(self.volume, self.impl_dir, lambda: client)
 
-        t = threading.Thread(target=target)
+        t = threading.Thread(target=target, daemon=True)
         t.start()
         t.join(timeout=timeout)
         if t.is_alive():
@@ -112,7 +112,7 @@ class TestWorkerLoop(unittest.TestCase):
             ready_seen[0] = True
             self.volume.clear_ready()
 
-        t = threading.Thread(target=writer)
+        t = threading.Thread(target=writer, daemon=True)
         t.start()
 
         result = self._run_worker_timeout(client)
@@ -138,7 +138,7 @@ class TestWorkerLoop(unittest.TestCase):
             ready_seen[0] = True
             self.volume.clear_ready()
 
-        t = threading.Thread(target=writer)
+        t = threading.Thread(target=writer, daemon=True)
         t.start()
 
         result = self._run_worker_timeout(client)
@@ -165,7 +165,7 @@ class TestWorkerLoop(unittest.TestCase):
             ready_seen[0] = True
             self.volume.clear_ready()
 
-        t = threading.Thread(target=writer)
+        t = threading.Thread(target=writer, daemon=True)
         t.start()
 
         result = self._run_worker_timeout(client)
@@ -204,7 +204,7 @@ class TestWorkerLoop(unittest.TestCase):
             ready_seen[0] = True
             self.volume.clear_ready()
 
-        t = threading.Thread(target=writer)
+        t = threading.Thread(target=writer, daemon=True)
         t.start()
 
         result = self._run_worker_timeout(client)
@@ -309,9 +309,9 @@ class TestClientDiscovery(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             agent_dir = Path(tmpdir)
-            # Create a file named 'test.py' which would shadow stdlib 'test'
+            # Create a file named 'json.py' which would shadow stdlib 'json'
             # if discovered via import_module instead of spec_from_file_location.
-            adapter = agent_dir / "test.py"
+            adapter = agent_dir / "json.py"
             adapter.write_text(
                 'from cae.agent_client import AgentClient, register_client\n'
                 '@register_client("collision-test")\n'
@@ -323,9 +323,9 @@ class TestClientDiscovery(unittest.TestCase):
 
             self.assertIn("collision-test", clients)
             self.assertEqual(len(clients), 1)
-            # Ensure stdlib 'test' module is not replaced by our adapter
-            import test as stdlib_test  # noqa: F401
-            self.assertTrue(hasattr(stdlib_test, '__file__'))
+            # Ensure stdlib 'json' module is not replaced by our adapter
+            import json as stdlib_json  # noqa: F401
+            self.assertTrue(hasattr(stdlib_json, 'loads'))
 
 if __name__ == "__main__":
     unittest.main()

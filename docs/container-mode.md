@@ -43,16 +43,37 @@ Manager ──spawn_tester()──▶  podman run --net=none cae-tester-base
 
 | Image | Purpose | Size |
 |-------|---------|------|
-| `cae-worker-base` | Runs agent, bind-mounts CAE source | ~60MB |
-| `cae-tester-base` | Runs tests, bind-mounts CAE source | ~60MB |
-| `cae-worker-standalone` | Worker with CAE baked in | ~65MB |
-| `cae-tester-standalone` | Tester with CAE baked in | ~65MB |
+| `cae-worker-base` | Runs agent, bind-mounts CAE source | ~460 MB uncompressed |
+| `cae-tester-base` | Runs tests, bind-mounts CAE source | ~460 MB uncompressed |
+| `cae-worker-standalone` | Worker with CAE baked in (extends base) | ~470 MB uncompressed |
+| `cae-tester-standalone` | Tester with CAE baked in (extends base) | ~470 MB uncompressed |
+
+`cae-tester-base` is the right choice for most benchmarks: tests invoke the
+agent's already-built artifacts via `tests/run.sh` and usually do not need
+extra language toolchains.  It already includes `build-essential`, `git`,
+`curl`, `ca-certificates`, and Python.
+
+### Fat Images (language-agnostic)
+
+| Image | Purpose | Size |
+|-------|---------|------|
+| `cae-worker-fat` | Worker + Go, Rust, Java, Node.js | ~1.9 GB uncompressed |
+| `cae-tester-fat` | Tester + Go, Rust, Java, Node.js | ~1.9 GB uncompressed |
+
+Use `cae-worker-fat` when your benchmark should not penalize agents that pick
+languages other than Python.  It includes Python, Node.js, Go, Rust, Java, plus
+`build-essential`, `git`, `curl`, and `ca-certificates`.
+
+Use `cae-tester-fat` only when the test harness itself must compile or run
+code in those languages (e.g. a benchmark that verifies a Go/Rust/Java
+artifact by rebuilding it inside the tester).  For most suites, prefer
+`cae-tester-base`.
 
 ### Layered Images (with agents)
 
 | Image | Base | Adds |
 |-------|------|------|
-| `cae-worker-pi` | `cae-worker-base` | Node.js 20 + `pi` npm package |
+| `cae-worker-pi` | `cae-worker-fat` | Node.js 22 + `pi` npm package |
 
 Build a layered image:
 
@@ -67,16 +88,14 @@ The worker container needs your agent binary in PATH. Three options:
 ### Option A: Layer It (Recommended)
 
 Create a Dockerfile that installs your agent:
-
 ```dockerfile
-FROM cae-worker-base
-RUN apt-get update && apt-get install -y nodejs npm \
-    && npm install -g @earendil-works/pi-coding-agent
+FROM cae-worker-fat
+RUN npm install -g @earendil-works/pi-coding-agent
 ```
 
 Build and use:
-
 ```bash
+PYTHONPATH=src python -m cae run --worker-image cae-worker-fat --tester-image cae-tester-fat ...
 PYTHONPATH=src python -m cae run --worker-image cae-worker-pi ...
 ```
 ### Option B: Bind-Mount It
@@ -92,7 +111,13 @@ Repeat `--agent-mount` for multiple directories.
 
 ### Option C: Use Standalone Image
 
-Bake the CAE framework into the image so no source bind-mount is needed:
+Bake the CAE framework source into the image itself so no source bind-mount is
+needed at runtime.  This is useful for distribution or CI pipelines where the
+framework version is pinned.
+
+The standalone images extend the **base** variants, not the fat variants:
+you still pick the worker/tester image separately to control which language
+runtimes are available.
 
 ```bash
 ./scripts/build-images.sh podman cae-worker-standalone cae-tester-standalone

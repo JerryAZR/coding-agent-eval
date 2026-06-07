@@ -291,13 +291,18 @@ def run_group(
         return score
 
     finally:
-        if worker_proc and worker_proc.poll() is None:
-            worker_proc.terminate()
-            try:
-                worker_proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                worker_proc.kill()
-
+        if worker_proc is not None:
+            if worker_proc.poll() is None:
+                worker_proc.terminate()
+                try:
+                    worker_proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    worker_proc.kill()
+            # Close log file handles opened by the runtime
+            for attr in ("_cae_stdout", "_cae_stderr"):
+                f = getattr(worker_proc, attr, None)
+                if f:
+                    f.close()
 
 def run_suite(
     benchmarks: list[Benchmark],

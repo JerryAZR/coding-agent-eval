@@ -52,6 +52,14 @@ def main(argv: list[str] | None = None) -> int:
                 tuple(m.split(":", 1)) for m in args.agent_mount
             ]
 
+        # SECURITY: Container mode is intentionally hardcoded for the CLI.
+        # LocalRuntime exists only for early-stage framework development and unit
+        # tests.  Evaluating arbitrary agent code on the host filesystem is
+        # unsafe: agents can read ~/.ssh, write anywhere the user can write,
+        # spawn persistent processes, and exfiltrate data.  Do not add a
+        # --runtime local flag here without a strong isolation story (e.g.
+        # dedicated VM, sandbox, or least-privilege user with no access to
+        # sensitive files).
         runtime = runtime_for_mode("container", **runtime_kwargs)
         agent_cmd = args.agent_cmd.split() if args.agent_cmd else None
         scores = run_suite(

@@ -19,7 +19,7 @@ cd "${PROJECT_ROOT}"
 ENGINE="${1:-podman}"
 shift || true
 
-TARGETS=("${@:-cae-worker-base cae-tester-base cae-worker-standalone cae-tester-standalone}")
+TARGETS=("${@:-cae-worker-base cae-tester-base cae-worker-standalone cae-tester-standalone cae-worker-fat cae-tester-fat}")
 
 if ! command -v "$ENGINE" >/dev/null 2>&1; then
     echo "Error: $ENGINE not found. Install Podman or Docker first." >&2

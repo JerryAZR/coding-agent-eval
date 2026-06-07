@@ -155,7 +155,6 @@ def register_client(name: str) -> Callable[[type[AgentClient]], type[AgentClient
 def get_client(
     name: str,
     agent_cmd: list[str] | None = None,
-    idle_timeout: float = 5.0,
 ) -> AgentClient:
     """Return an AgentClient instance for the given mode."""
     if name not in _CLIENTS:
@@ -163,4 +162,4 @@ def get_client(
             f"Unknown agent mode: {name!r}. "
             f"Available: {list(_CLIENTS.keys())}"
         )
-    return _CLIENTS[name](agent_cmd=agent_cmd, idle_timeout=idle_timeout)
+    return _CLIENTS[name](agent_cmd=agent_cmd)

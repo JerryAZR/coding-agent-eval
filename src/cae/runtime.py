@@ -97,6 +97,32 @@ def _worker_python(volume: Volume) -> str:
     return str(venv_python) if venv_python.exists() else sys.executable
 
 
+def _spawn_worker(cmd: list[str], env: dict[str, str], volume: Volume) -> subprocess.Popen:
+    """Spawn worker with stdout/stderr drained to log files.
+
+    Prevents pipe deadlock when the agent is verbose, and preserves output
+    for post-run debugging in ``.cae/worker.stdout`` and ``.cae/worker.stderr``.
+    """
+    log_dir = volume.root / ".cae"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    stdout_f = open(log_dir / "worker.stdout", "w")
+    stderr_f = open(log_dir / "worker.stderr", "w")
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=stdout_f,
+            stderr=stderr_f,
+            text=True,
+            env=env,
+        )
+    except Exception:
+        stdout_f.close()
+        stderr_f.close()
+        raise
+    proc._cae_stdout = stdout_f  # type: ignore[attr-defined]
+    proc._cae_stderr = stderr_f  # type: ignore[attr-defined]
+    return proc
+
 # ---------------------------------------------------------------------------
 # Local
 # ---------------------------------------------------------------------------
@@ -114,13 +140,7 @@ class LocalRuntime(Runtime):
         ]
         if agent_cmd:
             cmd += ["--agent-cmd", " ".join(agent_cmd)]
-        return subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            env=_worker_env(volume),
-        )
+        return _spawn_worker(cmd, _worker_env(volume), volume)
 
     def spawn_tester(self, volume: Volume, benchmark: Benchmark, phase_id: str) -> subprocess.CompletedProcess:
         env = dict(os.environ)
@@ -245,12 +265,7 @@ class ContainerRuntime(Runtime):
         if agent_cmd:
             cmd += ["--agent-cmd", " ".join(agent_cmd)]
 
-        return subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        return _spawn_worker(cmd, {}, volume)
     def spawn_tester(self, volume: Volume, benchmark: Benchmark, phase_id: str) -> subprocess.CompletedProcess:
         run_dir = volume.root.absolute()
         benchmark_dir = benchmark.base_dir.resolve()

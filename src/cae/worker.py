@@ -179,12 +179,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--volume", required=True, help="Run directory (parent of .cae/ and impl/)"
     )
-    parser.add_argument(
-        "--idle-timeout",
-        type=float,
-        default=5.0,
-        help="Seconds to wait after agent_end before submitting",
-    )
+    parser.add_argument("--agent-cmd", help="Custom agent command (space-separated)")
     parser.add_argument("--agent-cmd", help="Custom agent command (space-separated)")
     args = parser.parse_args(argv)
 
@@ -221,7 +216,6 @@ def main(argv: list[str] | None = None) -> int:
         return get_client(
             mode,
             agent_cmd=agent_cmd,
-            idle_timeout=args.idle_timeout,
         )
 
     return run_worker(volume, impl_dir, client_factory)

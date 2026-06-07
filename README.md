@@ -10,7 +10,10 @@ A minimal, containerized framework for evaluating coding agents against multi-ph
 ./scripts/build-images.sh
 ```
 
-This creates `cae-worker-base` and `cae-tester-base` images.
+This creates `cae-worker-base`, `cae-tester-base`, `cae-worker-fat`, and
+`cae-tester-fat` images.  Use the `-fat` variants for benchmarks that should
+not bias agents toward Python.  See [`docs/container-mode.md`](docs/container-mode.md)
+for image details.
 
 ### 2. Run a smoke benchmark
 
