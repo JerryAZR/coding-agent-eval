@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# "Cheated" cinterp — compiles with gcc + print_int shim and runs.
+# Used to validate test expectations against the real C compiler.
+set -euo pipefail
+
+SRC="$1"
+TMPDIR=$(mktemp -d)
+trap 'rm -rf "$TMPDIR"' EXIT
+
+{
+    echo '#include <stdio.h>'
+    echo 'void print_int(int x) { printf("%d\n", x); }'
+    cat "$SRC"
+} > "$TMPDIR/prog.c"
+
+gcc -x c -o "$TMPDIR/prog" "$TMPDIR/prog.c" 2>/dev/null || {
+    echo "compile error" >&2
+    exit 1
+}
+
+exec "$TMPDIR/prog"

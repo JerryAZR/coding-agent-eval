@@ -1,0 +1,18 @@
+{
+  "tests": [
+    {"name": "simple_call", "file": "phase-2/simple_call.c", "stdout": "7\n", "exit": 0},
+    {"name": "return_value", "file": "phase-2/return_value.c", "stdout": "15\n", "exit": 0},
+    {"name": "multiple_functions", "file": "phase-2/multiple_functions.c", "stdout": "1\n2\n", "exit": 0},
+    {"name": "call_chain", "file": "phase-2/call_chain.c", "stdout": "6\n", "exit": 0},
+    {"name": "local_scope", "file": "phase-2/local_scope.c", "stdout": "99\n1\n", "exit": 0},
+    {"name": "parameter_shadow", "file": "phase-2/parameter_shadow.c", "stdout": "6\n5\n", "exit": 0},
+    {"name": "return_in_if", "file": "phase-2/return_in_if.c", "stdout": "7\n3\n", "exit": 0},
+    {"name": "return_in_while", "file": "phase-2/return_in_while.c", "stdout": "5\n3\n0\n", "exit": 0},
+    {"name": "recursion_factorial", "file": "phase-2/recursion_factorial.c", "stdout": "1\n120\n", "exit": 0},
+    {"name": "recursion_fibonacci", "file": "phase-2/recursion_fibonacci.c", "stdout": "0\n1\n8\n", "exit": 0},
+    {"name": "phase1_in_function", "file": "phase-2/phase1_in_function.c", "stdout": "6\n", "exit": 0},
+    {"name": "nested_call_expr", "file": "phase-2/nested_call_expr.c", "stdout": "10\n", "exit": 0},
+    {"name": "error_undef_func", "file": "phase-2/error_undef_func.c", "exit": 1, "error": true},
+    {"name": "error_wrong_arity", "file": "phase-2/error_wrong_arity.c", "exit": 1, "error": true}
+  ]
+}
