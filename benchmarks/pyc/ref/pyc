@@ -1,0 +1,24 @@
+#!/usr/bin/env python3
+"""Reference implementation: wrap Python subset in executable script."""
+import sys
+from pathlib import Path
+
+SRC = sys.argv[1]
+OUT = Path("a.out")
+
+with open(SRC) as f:
+    code = f.read()
+
+# Wrap with shims and write executable
+OUT.write_text(
+    '#!/usr/bin/env python3\n'
+    'import sys as _sys\n'
+    '_real_exit = _sys.exit\n'
+    'def print_int(x): print(int(x))\n'
+    'class sys:\n'
+    '    @staticmethod\n'
+    '    def exit(n): _real_exit(int(n))\n'
+    '\n'
+    + code
+)
+OUT.chmod(0o755)

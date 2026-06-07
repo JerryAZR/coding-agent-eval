@@ -1,0 +1,18 @@
+{
+  "tests": [
+    {"name": "print_int", "file": "phase-1/print_int.py", "stdout": "42\n", "exit": 0},
+    {"name": "arithmetic", "file": "phase-1/arithmetic.py", "stdout": "3\n7\n20\n5\n2\n8\n", "exit": 0},
+    {"name": "variables", "file": "phase-1/variables.py", "stdout": "7\n", "exit": 0},
+    {"name": "assignment_chain", "file": "phase-1/assignment_chain.py", "stdout": "3\n3\n", "exit": 0},
+    {"name": "if_true", "file": "phase-1/if_true.py", "stdout": "1\n", "exit": 0},
+    {"name": "if_false", "file": "phase-1/if_false.py", "stdout": "0\n", "exit": 0},
+    {"name": "while", "file": "phase-1/while.py", "stdout": "0\n1\n2\n", "exit": 0},
+    {"name": "comparisons", "file": "phase-1/comparisons.py", "stdout": "1\n1\n1\n1\n1\n1\n", "exit": 0},
+    {"name": "operator_precedence", "file": "phase-1/operator_precedence.py", "stdout": "14\n7\n9\n", "exit": 0},
+    {"name": "return_code", "file": "phase-1/return_code.py", "stdout": "", "exit": 42},
+    {"name": "break_continue", "file": "phase-1/break_continue.py", "stdout": "1\n3\n", "exit": 0},
+    {"name": "elif", "file": "phase-1/elif.py", "stdout": "3\n", "exit": 0},
+    {"name": "boolean_ops", "file": "phase-1/boolean_ops.py", "stdout": "1\n0\n1\n0\n1\n0\n", "exit": 0},
+    {"name": "div_zero", "file": "phase-1/div_zero.py", "exit": 1, "error": true}
+  ]
+}

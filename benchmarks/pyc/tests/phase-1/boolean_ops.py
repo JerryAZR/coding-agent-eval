@@ -1,0 +1,7 @@
+print_int(1 and 1)
+print_int(1 and 0)
+print_int(0 or 1)
+print_int(0 or 0)
+print_int(not 0)
+print_int(not 1)
+sys.exit(0)

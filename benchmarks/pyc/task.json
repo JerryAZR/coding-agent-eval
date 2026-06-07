@@ -1,0 +1,22 @@
+{
+  "id": "pyc",
+  "name": "Python Compiler",
+  "description": "Build a compiler for a restricted subset of Python.",
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "Expressions and Control Flow",
+      "promptFile": "prompts/phase-1.md",
+      "points": 10,
+      "maxAttempts": 3,
+      "maxTime": 1200
+    }
+  ],
+  "tests": {
+    "script": "tests/run.sh"
+  },
+  "scoring": {
+    "penaltyPerAttempt": 2,
+    "penaltyFloor": 0
+  }
+}

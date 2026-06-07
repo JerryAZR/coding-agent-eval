@@ -14,7 +14,7 @@ A benchmark is a self-contained directory consumed by the framework via `--suite
   tests/             # Test sources
     run.sh           # Entry point; invoked by tester support process
     fixtures/        # Test data, expected outputs, etc.
-  ref-impl.py        # Reference implementation (optional, for validation)
+  ref/               # Reference implementation (optional, for validation)
 ```
 
 ## `task.json` Format
@@ -103,3 +103,44 @@ PYTHONPATH=src python -m cae run \
   --volume /tmp/dummy-runs \
   --agent-template templates/pi
 ```
+
+## Benchmark Roster
+
+### `cinterp` — C Interpreter
+Build an interpreter for a restricted subset of C, extended incrementally across phases.
+
+| Phase | Topic | Status |
+|-------|-------|--------|
+| 1 | Expressions and Control Flow | ✅ Implemented |
+| 2 | User-Defined Functions | ✅ Implemented |
+| 3 | Arrays and Pointers | ✅ Implemented |
+| 4 | Function Pointers | ✅ Implemented |
+
+**Future growth directions** (not yet implemented):
+- **Structs**: Composite types, field offsets, nested structs, pointer-to-struct (`p->x`)
+- **`malloc`/`free`**: Heap allocation, use-after-free detection, memory leaks
+- **`char` and strings**: Character literals, string constants, `print_str()`, null termination
+- **`goto` and labels**: Unstructured control flow, basic blocks
+- **C++ classes**: `class`, methods, implicit `this`, constructors
+- **C++ inheritance**: Base classes, `virtual`, vtables, dynamic dispatch
+- **C++ templates**: Parametric polymorphism, compile-time instantiation
+
+### `httpsrv` — HTTP Server *(in design)*
+Build an HTTP server incrementally, from a basic responder to a full-featured web server.
+
+| Phase | Topic | Status |
+|-------|-------|--------|
+| 1 | Basic GET | 📝 In design |
+| 2 | Routing and Query Parameters | 📝 In design |
+| 3 | POST and JSON | 📝 In design |
+| 4 | Static File Serving | 📝 In design |
+
+## Ideas for Additional Benchmarks
+
+- **Regex engine**: NFA/DFA construction, matching, capture groups
+- **JSON parser + query tool**: Recursive descent parsing, path queries, filtering
+- **Markdown renderer**: Block/inline parsing, HTML generation
+- **Shell**: Command parsing, process spawning, pipes, redirection
+- **Key-value store**: Persistence, indexing, transactions
+- **Spreadsheet engine**: Formula parsing, dependency graph, recalculation
+- **Build system**: Dependency graphs, incremental builds, file watching

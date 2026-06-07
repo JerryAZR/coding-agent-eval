@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+import sys as _sys
+_real_exit = _sys.exit
+def print_int(x): print(int(x))
+class sys:
+    @staticmethod
+    def exit(n): _real_exit(int(n))
+
+x = 1 // 0
+print_int(x)
+sys.exit(0)
