@@ -6,89 +6,42 @@ Your task is to extend `cinterp` so it supports arrays, pointers, and address ar
 
 The same executable: `./cinterp`
 
-## What to Add
+## Language Features to Add
 
-1. **Arrays**:
-   ```c
-   int nums[5];
-   nums[2] = 7;
-   print_int(nums[2]);
-   ```
+Your interpreter must support the following syntax and semantics.
 
-2. **Pointers**:
-   ```c
-   int value;
-   int *ptr;
-   ptr = &value;
-   *ptr = 100;
-   print_int(value);
-   ```
+### Arrays
 
-3. **Pointer arithmetic**:
-   ```c
-   int data[4];
-   int *p;
-   p = data;
-   *(p + 2) = 42;
-   print_int(data[2]);
-   ```
+- **Declaration:** `int name[constant];` where `constant` is a positive integer literal known at parse time. The array is local to the function it is declared in.
+- **Indexing:** `name[index]` where `index` is any `int` expression. This reads or writes the element at position `index` (0-based).
 
-4. **Arrays in function calls** (array-to-pointer decay):
-   ```c
-   int count(int *vals, int n) {
-       int i;
-       int total;
-       total = 0;
-       i = 0;
-       while (i < n) {
-           total = total + vals[i];
-           i = i + 1;
-       }
-       return total;
-   }
+### Pointers
 
-   int main() {
-       int vals[3];
-       vals[0] = 10;
-       vals[1] = 20;
-       vals[2] = 30;
-       print_int(count(vals, 3));
-       return 0;
-   }
-   ```
+- **Declaration:** `int *name;` declares a pointer to `int`.
+- **Address-of:** `&variable` produces a pointer to the named variable. `&array[index]` produces a pointer to that array element.
+- **Dereference:** `*pointer` reads or writes the value at the address stored in the pointer.
+- **Pointer arithmetic:** `*(pointer + offset)` accesses the element `offset` positions away from the pointer, where each position is one `int` (not one byte).
+- **Null pointer:** Assigning `0` to a pointer variable makes it null. Dereferencing a null pointer is a runtime error.
 
-5. **Pointer-to-pointer**:
-   ```c
-   int n;
-   int *q;
-   int **r;
-   n = 99;
-   q = &n;
-   r = &q;
-   print_int(**r);
-   ```
+### Pointer-to-Pointer
 
-6. **Null pointers**:
-   ```c
-   int *ptr;
-   ptr = 0;
-   ```
-   Dereferencing a null pointer is a runtime error.
+- **Declaration:** `int **name;` declares a pointer to a pointer to `int`. Multiple levels of dereference (`**pp`, `*pp`, etc.) must resolve to the underlying `int`.
 
-## Rules
+### Array Decay
 
-- Arrays are declared with a constant size: `int arr[10];`. The size is known at parse time.
-- Pointer arithmetic `*(p + n)` works in units of `int` (so `*(p + 1)` refers to the next integer, not the next byte).
-- `&x` produces a pointer to variable `x`. `&arr[i]` produces a pointer to the i-th element.
-- All prior phases must continue to work.
+- When an array name appears in a context that expects a pointer (for example, as a function argument where the parameter is `int *a`), the array name is treated as a pointer to its first element.
 
-## Error cases
+## Error Cases
 
 Your interpreter must detect and report as runtime errors:
 - Dereferencing a null pointer
 - Passing the wrong number of arguments to a function
 
 Test programs will only dereference pointers obtained from `&`, array names, or `0` (null).
+
+## Prior Phases
+
+All features from Phases 1 and 2 must continue to work.
 
 ## Not in this phase
 

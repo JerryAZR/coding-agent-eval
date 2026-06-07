@@ -6,76 +6,39 @@ Your task is to extend `cinterp` so functions can be treated as values.
 
 The same executable: `./cinterp`
 
-## What to Add
+## Language Features to Add
 
-1. **Function pointer variables**:
-   ```c
-   int subtract(int a, int b) {
-       return a - b;
-   }
+Your interpreter must support the following syntax and semantics.
 
-   int main() {
-       int (*op)(int, int);
-       op = subtract;
-       print_int(op(10, 3));
-       return 0;
-   }
-   ```
+### Function Pointer Variables
 
-2. **Function pointers as function arguments**:
-   ```c
-   int compute(int (*fn)(int, int), int a, int b) {
-       return fn(a, b);
-   }
+- **Declaration:** `int (*name)(int, int);` declares a variable that can hold a reference to any function with the signature `int f(int, int)`.
+- **Assignment:** `name = func_name;` stores a reference to the named function in the variable.
+- **Indirect call:** `name(args...)` invokes the function currently stored in the pointer, with the same behavior as a direct call.
 
-   int main() {
-       print_int(compute(subtract, 8, 2));
-       return 0;
-   }
-   ```
+### Function Pointers in Other Contexts
 
-3. **Function pointers in arrays**:
-   ```c
-   int (*handlers[3])(int, int);
-   handlers[0] = subtract;
-   handlers[1] = divide;
-   print_int(handlers[0](5, 1));
-   ```
+- **As parameters:** A function may accept a function pointer as an argument. For example, a parameter declared as `int (*op)(int, int)` receives a function reference.
+- **As return values:** A function may return a function pointer. For example, `int (*choose(int mode))(int, int)` is a function that returns a pointer to a function taking two `int`s and returning `int`.
+- **In arrays:** An array of function pointers is declared as `int (*name[3])(int, int);`. Elements are assigned and called as `name[i](args...)`.
 
-4. **Function pointer as return value**:
-   ```c
-   int (*pick(int mode))(int, int) {
-       if (mode == 0) return subtract;
-       return divide;
-   }
+### Null Function Pointers
 
-   int main() {
-       int (*f)(int, int);
-       f = pick(0);
-       print_int(f(7, 2));
-       return 0;
-   }
-   ```
+- Assigning `0` to a function pointer variable makes it null. Calling a null function pointer is a runtime error.
 
-5. **Null function pointers**:
-   ```c
-   int (*f)(int, int);
-   f = 0;
-   ```
-   Calling a null function pointer is a runtime error.
+### Signature Matching
 
-## Rules
+- A function pointer can only be assigned a function whose return type and parameter types and count match exactly. The interpreter does not need to support implicit conversions or variadic functions.
 
-- Function pointer types must match the target function's signature exactly (same return type, same parameter types and count).
-- Assigning a function name to a function pointer variable stores a reference to that function.
-- Calling through a function pointer behaves exactly like a direct call.
-- All prior phases must continue to work.
-
-## Error cases
+## Error Cases
 
 Your interpreter must detect and report as runtime errors:
 - Calling a null function pointer
 - Passing the wrong number of arguments to a function
+
+## Prior Phases
+
+All features from Phases 1, 2, and 3 must continue to work.
 
 ## Not in this phase
 
