@@ -29,3 +29,4 @@ Thumbs.db
 # Benchmark runs
 runs/
 20*-*-*T*_*
+benchmarks/*/tests/a.out
