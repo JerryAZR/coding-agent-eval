@@ -13,6 +13,8 @@
     {"name": "break_continue", "file": "phase-1/break_continue.py", "stdout": "1\n3\n", "exit": 0},
     {"name": "elif", "file": "phase-1/elif.py", "stdout": "3\n", "exit": 0},
     {"name": "boolean_ops", "file": "phase-1/boolean_ops.py", "stdout": "1\n0\n1\n0\n1\n0\n", "exit": 0},
-    {"name": "div_zero", "file": "phase-1/div_zero.py", "exit": 1, "error": true}
+    {"name": "div_zero", "file": "phase-1/div_zero.py", "exit": 1, "error": true},
+    {"name": "mod_zero", "file": "phase-1/mod_zero.py", "exit": 1, "error": true},
+    {"name": "bad_indent", "file": "phase-1/bad_indent.py", "compile_error": true}
   ]
 }

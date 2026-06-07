@@ -35,9 +35,10 @@ for meta_file in META_FILES:
     for test in data["tests"]:
         name = test["name"]
         source_file = f"{SCRIPT_DIR}/{test['file']}"
-        want_exit = test["exit"]
+        want_exit = test.get("exit", 0)
         want_stdout = test.get("stdout")
         is_error = test.get("error", False)
+        is_compile_error = test.get("compile_error", False)
 
         os.chdir(SCRIPT_DIR)
         compile_result = subprocess.run(
@@ -49,6 +50,19 @@ for meta_file in META_FILES:
         if compile_result.returncode == 124:
             print(f"FAIL {name}: compile timed out after 30s")
             failed += 1
+            continue
+
+        if is_compile_error:
+            if compile_result.returncode == 0:
+                print(f"FAIL {name}: expected compile error, got success")
+                failed += 1
+                continue
+            if not compile_result.stderr.strip():
+                print(f"FAIL {name}: expected compile error message on stderr")
+                failed += 1
+                continue
+            print(f"PASS {name}")
+            passed += 1
             continue
 
         if compile_result.returncode != 0:
