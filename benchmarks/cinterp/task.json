@@ -10,6 +10,22 @@
       "points": 10,
       "maxAttempts": 3,
       "maxTime": 900
+    },
+    {
+      "id": "phase-2",
+      "name": "User-Defined Functions",
+      "promptFile": "prompts/phase-2.md",
+      "points": 20,
+      "maxAttempts": 3,
+      "maxTime": 900
+    },
+    {
+      "id": "phase-3",
+      "name": "Arrays and Pointers",
+      "promptFile": "prompts/phase-3.md",
+      "points": 30,
+      "maxAttempts": 3,
+      "maxTime": 1200
     }
   ],
   "tests": {

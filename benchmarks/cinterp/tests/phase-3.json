@@ -1,0 +1,19 @@
+{
+  "tests": [
+    {"name": "basic_array", "file": "phase-3/basic_array.c", "stdout": "1\n2\n3\n", "exit": 0},
+    {"name": "array_in_function", "file": "phase-3/array_in_function.c", "stdout": "6\n", "exit": 0},
+    {"name": "pointer_to_local", "file": "phase-3/pointer_to_local.c", "stdout": "42\n", "exit": 0},
+    {"name": "pointer_arithmetic", "file": "phase-3/pointer_arithmetic.c", "stdout": "10\n99\n30\n", "exit": 0},
+    {"name": "array_decay", "file": "phase-3/array_decay.c", "stdout": "7\n", "exit": 0},
+    {"name": "modify_array_through_pointer", "file": "phase-3/modify_array_through_pointer.c", "stdout": "0\n99\n0\n", "exit": 0},
+    {"name": "pointer_to_pointer", "file": "phase-3/pointer_to_pointer.c", "stdout": "7\n", "exit": 0},
+    {"name": "null_pointer", "file": "phase-3/null_pointer.c", "stdout": "1\n", "exit": 0},
+    {"name": "address_of_element", "file": "phase-3/address_of_element.c", "stdout": "1\n99\n3\n", "exit": 0},
+    {"name": "pointer_in_control_flow", "file": "phase-3/pointer_in_control_flow.c", "stdout": "5\n20\n", "exit": 0},
+    {"name": "pointer_as_return", "file": "phase-3/pointer_as_return.c", "stdout": "20\n", "exit": 0},
+    {"name": "array_with_loops", "file": "phase-3/array_with_loops.c", "stdout": "0\n2\n4\n6\n8\n", "exit": 0},
+    {"name": "error_null_deref", "file": "phase-3/error_null_deref.c", "exit": 1, "error": true},
+    {"name": "error_out_of_bounds", "file": "phase-3/error_out_of_bounds.c", "exit": 1, "error": true},
+    {"name": "error_pointer_oob", "file": "phase-3/error_pointer_oob.c", "exit": 1, "error": true}
+  ]
+}
